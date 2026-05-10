@@ -108,7 +108,7 @@ apply_geospatial_filters <- function(data) {
   return(final_df)
 }
 
-
+#
 # --- Pipeline Execution ---
 # result <- df %>%
 #   process_bird_data(start_dates) %>% # From previous turn
