@@ -108,7 +108,7 @@ apply_geospatial_filters <- function(data) {
   return(final_df)
 }
 
-
+#
 # --- Pipeline Execution ---
 # result <- df %>%
 #   process_bird_data(start_dates) %>% # From previous turn
@@ -124,4 +124,5 @@ startDates <- c('6/26/2014', '7/17/2013', '7/7/2013', '7/13/2013', '06/28/2009',
 dfPipe <- df %>%
   process_bird_data(startDates, Tag) %>% #Tag or Bird ID column name
   apply_geospatial_filters()
-write.csv(dfPipe, "Final_Filtered_Chick_Data.csv", row.names = FALSE)
+write.csv(dfPipe, "all_chick_data_final_filter.csv", row.names = FALSE)
+
