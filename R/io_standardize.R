@@ -1,21 +1,37 @@
+#' Standardize GPS column names
+#'
+#' Renames common GPS tracking columns to a standard schema used throughout the
+#' package. The function can auto-detect common column names or use a supplied
+#' column map.
+#'
+#' @param raw_data A data frame or tibble containing raw GPS tracking data.
+#' @param col_map Optional named character vector mapping standard names to
+#'   source column names.
+#' @param add_missing_cols Logical. If TRUE, missing mapped columns are added as
+#'   NA columns. If FALSE, missing mapped columns cause an error.
+#'
+#' @return A tibble with standardized GPS columns.
+#'
+#' @examples
+#' \dontrun{
 #' raw <- read_gps_data("data/bird_tracks_2014.csv")
 #'
-#' # Auto-detect common column names
 #' std <- standardize_gps_columns(raw)
 #'
-#' # Supply explicit column map for a non-standard file
 #' std <- standardize_gps_columns(
 #'   raw,
 #'   col_map = c(
-#'     bird_id   = "BirdCode",
+#'     bird_id = "BirdCode",
 #'     timestamp = "UTC_DateTime",
-#'     lon       = "Lon_DD",
-#'     lat       = "Lat_DD",
-#'     colony    = "Site",
+#'     lon = "Lon_DD",
+#'     lat = "Lat_DD",
+#'     colony = "Site",
 #'     device_id = "GLS_ID"
 #'   )
 #' )
 #' }
+#'
+#' @export
 standardize_gps_columns <- function(raw_data,
                                     col_map        = NULL,
                                     add_missing_cols = TRUE) {

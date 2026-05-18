@@ -1,0 +1,19 @@
+---
+title: "seabird_fisheries_overlap_workflow"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{seabird_fisheries_overlap_workflow}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(Shearwater)
+```

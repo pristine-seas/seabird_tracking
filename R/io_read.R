@@ -2,12 +2,24 @@
 #'
 #' Reads raw GPS tracking files into R as a tibble. Currently supports CSV
 #' format; extensible to other formats in future sprints. Keeps file-format
-#' parsing completely separate from column standardization — do not rename
+#' parsing completely separate from column standardization. Do not rename
 #' columns here.
+#'
+#' @param file_path Character. Path to the GPS tracking file.
+#' @param format Character. File format. Currently only "csv" is supported.
+#' @param ... Additional arguments passed to readr::read_csv().
+#'
+#' @return A tibble containing the raw GPS tracking data.
+#'
+#' @examples
+#' \dontrun{
 #' raw <- read_gps_data("data/bird_tracks_2014.csv")
 #' head(raw)
 #' }
+#'
+#' @export
 read_gps_data <- function(file_path, format = "csv", ...) {
+
 
   if (!file.exists(file_path)) {
     stop("File not found: ", file_path)

@@ -65,9 +65,21 @@ plot_fisheries_heatmap <- function(grid_data,
 #'
 #' Creates a map of GPS tracks for one or more individuals. Useful for quick
 #' visual QA immediately after import or cleaning.
+#'
+#' @param track_data A data frame or tibble containing longitude and latitude columns.
+#' @param color_by Character. Column used to color tracks. Default is `"bird_id"`.
+#' @param colony_coords Optional named numeric vector with `lon` and `lat`.
+#' @param title Character. Plot title.
+#'
+#' @return A `ggplot2` plot object.
+#'
+#' @examples
+#' \dontrun{
 #' std <- standardize_gps_columns(read_gps_data("tracks.csv"))
 #' plot_tracks(std, colony_coords = c(lon = -175.3, lat = -19.8))
 #' }
+#'
+#' @export
 plot_tracks <- function(track_data,
                         color_by      = "bird_id",
                         colony_coords = NULL,
