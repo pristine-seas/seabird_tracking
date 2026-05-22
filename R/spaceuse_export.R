@@ -1,9 +1,48 @@
+#' Calculate Trip Temporal and Spatial Displacement Statistics
+#'
+#' Evaluates overall elapsed duration windows per trip and calculates point-by-point
+#' geometric track distances relative to a static baseline breeding colony coordinate grid node.
+#'
+#' @param tracks An \code{sf} tracking collection object. Must contain a valid \code{time}
+#'   field (POSIXct layout) and a string column named \code{trip_id}.
+#' @param colony_coords Numeric vector. A named vector containing keys \code{lon}
+#'   and \code{lat} specifying the geographic location of the home breeding colony.
+#'
+#' @return A modified version of the input \code{sf} object appended with three columns:
+#'   \item{duration_hrs}{Total elapsed time in hours evaluated over the active trip sequence.}
+#'   \item{dist_to_colony_m}{The instantaneous distance in meters between the tracked coordinate point and the colony footprint.}
+#'   \item{max_dist_km}{The maximum value of \code{dist_to_colony_m} converted to kilometers over the entire tracking series.}
+#' @export
+#'
+#'
+#' #' Calculate Spatial Polygon Surface Coverage Areas
+#'
+#' Evaluates geographic surface boundaries for calculated home range or core utilization
+#' polygons and appends explicit area sizing properties calculated in square kilometers.
+#'
+#' @param sf_polys An \code{sf} spatial polygon layer containing home range boundary geometries.
+#'
+#' @return The original \code{sf} data frame appended with a numeric metric column named \code{area_km2}.
+#' @export
+#'
+#'
+#' #' Extract Spatial Centroids from Area Features
+#'
+#' Computes the geographic center of mass (spatial midpoints) for calculated
+#' boundary polygons or utilization contours.
+#'
+#' @param sf_polys An \code{sf} spatial feature collection containing target polygons.
+#'
+#' @return An \code{sf} spatial point object representing feature centroids.
+#' @export
+#'
+
 library(adehabitatHR)
 library(sf)
 library(sp)
 
 calculate_trip_stats <- function(tracks, colony_coords) {
-  
+
   # 1. Calculate time in hours for each trip
   # Group by trip_id and find the difference between start and end
   tracks <- tracks %>%
@@ -11,19 +50,19 @@ calculate_trip_stats <- function(tracks, colony_coords) {
     dplyr::mutate(
       duration_hrs = as.numeric(difftime(max(time), min(time), units = "hours"))
     )
-  
+
   # 2. Calculate distance from colony in meters
   # Create a spatial point for the colony
   colony_sf <- sf::st_sfc(sf::st_point(colony_coords), crs = sf::st_crs(tracks))
-  
+
   # Calculate distance for every point in the track
   tracks$dist_to_colony_m <- as.numeric(sf::st_distance(tracks, colony_sf))
-  
+
   # 3. Derive Max Distance from Colony (Objective 2 requirement)
   tracks <- tracks %>%
     dplyr::mutate(max_dist_km = max(dist_to_colony_m) / 1000) %>%
     dplyr::ungroup()
-  
+
   return(tracks)
 }
 
