@@ -18,3 +18,5 @@ Suggests:
 Config/testthat/edition: 3
 RoxygenNote: 7.3.3
 VignetteBuilder: knitr
+Depends: 
+    R (>= 3.5)
