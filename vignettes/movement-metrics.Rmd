@@ -1,0 +1,430 @@
+---
+title: "Movement Metrics"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Movement Metrics}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+library(Shearwater)
+library(dplyr)
+library(geosphere)
+library(sf)
+```
+
+## Overview
+
+This vignette demonstrates how to calculate trip-level movement metrics from a segmented Wedge-tailed Shearwater GPS dataset. The goal is to move from raw GPS fixes to biologically useful movement summaries, such as trip distance, trip duration, total path length, maximum distance from the colony, track centroids, and foraging range.
+
+The functions covered in this vignette are:
+
+```{r functions-covered, eval=FALSE}
+calc_trip_distance()
+calc_trip_duration()
+calc_path_length()
+calc_max_distance_from_colony()
+calc_track_centroid()
+calc_foraging_range()
+```
+
+These functions are useful after GPS points have been cleaned, standardized, and assigned to trips.
+
+## Load example GPS spreadsheet data
+
+For this vignette, we use the example GPS spreadsheet saved in the package as:
+
+```{r file-location, eval=FALSE}
+inst/extdata/example_wtsh_gps.csv
+```
+
+The raw spreadsheet has columns such as `Date`, `Time`, `Latitude`, `Longitude`, `Altitude`, `Speed`, `Course`, `Type`, `Distance`, and `Essential`.
+
+```{r load-example-data}
+gps_raw <- read.csv(
+  system.file("extdata", "example_wtsh_gps.csv", package = "Shearwater"),
+  stringsAsFactors = FALSE
+)
+
+head(gps_raw)
+```
+
+## Standardize the GPS data
+
+The movement metric functions expect standard column names such as:
+
+- `track_id`
+- `datetime_gmt`
+- `longitude`
+- `latitude`
+- `at_colony`
+- `trip_id`
+
+The raw spreadsheet stores date and time separately, so we first combine them into one timestamp column.
+
+```{r standardize-data}
+gps <- gps_raw %>%
+  mutate(
+    track_id = "bird_001",
+    datetime_gmt = as.POSIXct(
+      paste(Date, Time),
+      format = "%m/%d/%Y %H:%M:%S",
+      tz = "UTC"
+    ),
+    longitude = Longitude,
+    latitude = Latitude
+  ) %>%
+  arrange(track_id, datetime_gmt)
+
+head(gps)
+```
+
+## Define the colony location
+
+For this example, we treat the first GPS point as the colony location. In a real analysis, the colony coordinates should come from field metadata or a known colony reference point.
+
+```{r define-colony}
+colony_coords <- c(
+  lon = gps$longitude[1],
+  lat = gps$latitude[1]
+)
+
+colony_coords
+```
+
+Next, we calculate each point's distance from the colony.
+
+```{r calculate-distance-from-colony}
+gps <- gps %>%
+  mutate(
+    dist_to_colony_m = geosphere::distHaversine(
+      cbind(longitude, latitude),
+      matrix(
+        c(colony_coords["lon"], colony_coords["lat"]),
+        nrow = n(),
+        ncol = 2,
+        byrow = TRUE
+      )
+    )
+  )
+
+summary(gps$dist_to_colony_m)
+```
+
+## Create an at-colony flag
+
+Trip segmentation depends on knowing whether each GPS point is at the colony or away from the colony. Here, points within 75 meters of the colony are labeled as `TRUE`, while points farther away are labeled as `FALSE`.
+
+```{r create-at-colony}
+gps <- gps %>%
+  mutate(
+    at_colony = dist_to_colony_m <= 75
+  )
+
+table(gps$at_colony)
+```
+
+The exact distance threshold should be chosen based on GPS accuracy, colony size, and the biological question. For this example dataset, 75 meters creates a simple distinction between colony and away-from-colony points.
+
+## Segment trips
+
+The movement metric functions require a `trip_id` column. Rows where the bird is at the colony receive `NA`, while away-from-colony points are assigned a numbered trip.
+
+```{r segment-trips}
+segmented <- segment_trips(
+  gps,
+  bird_id_col = "track_id",
+  datetime_col = "datetime_gmt",
+  colony_flag_col = "at_colony",
+  trip_id_col = "trip_id"
+)
+
+head(segmented)
+```
+
+Check how many points were assigned to each trip.
+
+```{r trip-counts}
+segmented %>%
+  count(track_id, trip_id)
+```
+
+## Add a simple foraging label
+
+The `calc_foraging_range()` function can estimate the spatial area used for foraging. To demonstrate this, we create a simple behavior label using speed.
+
+In this example, points away from the colony with relatively low speed are labeled as `"foraging"`, while other away-from-colony points are labeled as `"commuting"`. Colony points are labeled as `"colony"`.
+
+```{r create-phase-label}
+segmented <- segmented %>%
+  mutate(
+    phase = case_when(
+      is.na(trip_id) ~ "colony",
+      Speed <= median(Speed, na.rm = TRUE) ~ "foraging",
+      TRUE ~ "commuting"
+    )
+  )
+
+table(segmented$phase)
+```
+
+This is only a simple demonstration. In a full analysis, behavior classification should be based on a better movement model or a validated rule-based method.
+
+## Calculate straight-line trip distance
+
+The `calc_trip_distance()` function calculates the straight-line distance from the first point of a trip to the last point of that same trip.
+
+```{r calc-trip-distance}
+trip_distance <- calc_trip_distance(
+  trip_data = segmented,
+  bird_id_col = "track_id",
+  trip_id_col = "trip_id",
+  datetime_col = "datetime_gmt",
+  lon_col = "longitude",
+  lat_col = "latitude",
+  output_col = "trip_distance_m"
+)
+
+trip_distance
+```
+
+This metric is useful for understanding the displacement between the start and end of a trip. It does not measure the full route traveled by the bird.
+
+## Calculate trip duration
+
+The `calc_trip_duration()` function calculates how long each trip lasted. It uses the first and last timestamp within each trip.
+
+```{r calc-trip-duration}
+trip_duration <- calc_trip_duration(
+  trip_data = segmented,
+  bird_id_col = "track_id",
+  trip_id_col = "trip_id",
+  datetime_col = "datetime_gmt",
+  units = "hours",
+  output_col = "trip_duration"
+)
+
+trip_duration
+```
+
+The output gives one row per trip with the start time, end time, number of GPS fixes, and duration.
+
+## Calculate total path length
+
+The `calc_path_length()` function calculates the total distance traveled along the GPS path. Unlike straight-line trip distance, path length sums the distance between consecutive GPS points.
+
+```{r calc-path-length}
+path_length <- calc_path_length(
+  track_data = segmented,
+  bird_id_col = "track_id",
+  trip_id_col = "trip_id",
+  datetime_col = "datetime_gmt",
+  lon_col = "longitude",
+  lat_col = "latitude",
+  output_col = "path_length_m"
+)
+
+path_length
+```
+
+This metric is usually larger than straight-line trip distance because it follows the bird's observed route.
+
+## Calculate maximum distance from colony
+
+The `calc_max_distance_from_colony()` function finds the farthest point reached from the colony during each trip.
+
+```{r calc-max-distance}
+max_distance <- calc_max_distance_from_colony(
+  trip_data = segmented,
+  colony_coords = colony_coords,
+  bird_id_col = "track_id",
+  trip_id_col = "trip_id",
+  lon_col = "longitude",
+  lat_col = "latitude",
+  output_col = "max_distance_from_colony_m"
+)
+
+max_distance
+```
+
+This metric is useful for understanding how far birds travel from the breeding colony.
+
+## Combine trip-level movement metrics
+
+The separate metric tables can be joined into one trip-level summary table.
+
+```{r combine-trip-metrics}
+trip_metrics <- trip_distance %>%
+  left_join(
+    trip_duration,
+    by = c("track_id", "trip_id")
+  ) %>%
+  left_join(
+    path_length,
+    by = c("track_id", "trip_id")
+  ) %>%
+  left_join(
+    max_distance,
+    by = c("track_id", "trip_id")
+  )
+
+trip_metrics
+```
+
+This table is the main trip-level movement summary. Each row represents one trip, with columns for distance, duration, path length, and maximum distance from the colony.
+
+## Calculate track centroid
+
+The `calc_track_centroid()` function calculates the spatial center of a track or set of points. This can be useful for quickly summarizing the general location of an individual's movement.
+
+```{r calc-track-centroid}
+track_centroid <- calc_track_centroid(
+  track_data = segmented,
+  bird_id_col = "track_id",
+  trip_id_col = NULL,
+  lon_col = "longitude",
+  lat_col = "latitude",
+  crs = 4326
+)
+
+track_centroid
+```
+
+The output is an `sf` object, meaning it can be mapped or used in later spatial analysis.
+
+## Calculate foraging range
+
+The `calc_foraging_range()` function estimates the spatial extent of foraging points. Here, we use the `phase` column created earlier and calculate a convex hull around points labeled `"foraging"`.
+
+```{r calc-foraging-range}
+foraging_range <- calc_foraging_range(
+  track_data = segmented,
+  bird_id_col = "track_id",
+  lon_col = "longitude",
+  lat_col = "latitude",
+  phase_col = "phase",
+  foraging_value = "foraging",
+  method = "convex_hull",
+  crs = 4326
+)
+
+foraging_range
+```
+
+The output is also an `sf` object. It includes a geometry column and a `foraging_range_km2` column, which gives the estimated range area in square kilometers.
+
+## Compare trip distance and path length
+
+Straight-line trip distance and path length answer different movement questions. Straight-line distance asks how far the bird ended from where it started. Path length asks how much total distance the bird traveled along the observed route.
+
+```{r compare-distance-path}
+trip_metrics %>%
+  select(
+    track_id,
+    trip_id,
+    trip_distance_m,
+    path_length_m,
+    max_distance_from_colony_m,
+    trip_duration
+  )
+```
+
+In most real GPS tracks, `path_length_m` will be greater than or equal to `trip_distance_m` because birds rarely travel in a perfectly straight line.
+
+## Interpretation
+
+The movement metrics produced in this vignette describe different aspects of seabird movement behavior. `calc_trip_distance()` summarizes displacement across a trip, while `calc_path_length()` measures the cumulative route traveled. `calc_trip_duration()` measures the amount of time spent away from the colony, and `calc_max_distance_from_colony()` identifies how far the bird traveled from its colony.
+
+The spatial outputs, `calc_track_centroid()` and `calc_foraging_range()`, are useful for mapping and conservation analysis. These outputs can be combined with marine protected areas, fisheries effort layers, jurisdictional boundaries, or habitat data to study where birds are moving and where they may overlap with human activities.
+
+## Full workflow
+
+The full workflow is:
+
+```{r full-workflow, eval=FALSE}
+gps_raw <- read.csv(
+  system.file("extdata", "example_wtsh_gps.csv", package = "Shearwater"),
+  stringsAsFactors = FALSE
+)
+
+gps <- gps_raw %>%
+  mutate(
+    track_id = "bird_001",
+    datetime_gmt = as.POSIXct(
+      paste(Date, Time),
+      format = "%m/%d/%Y %H:%M:%S",
+      tz = "UTC"
+    ),
+    longitude = Longitude,
+    latitude = Latitude
+  ) %>%
+  arrange(track_id, datetime_gmt)
+
+colony_coords <- c(
+  lon = gps$longitude[1],
+  lat = gps$latitude[1]
+)
+
+gps <- gps %>%
+  mutate(
+    dist_to_colony_m = geosphere::distHaversine(
+      cbind(longitude, latitude),
+      matrix(
+        c(colony_coords["lon"], colony_coords["lat"]),
+        nrow = n(),
+        ncol = 2,
+        byrow = TRUE
+      )
+    ),
+    at_colony = dist_to_colony_m <= 75
+  )
+
+segmented <- segment_trips(
+  gps,
+  bird_id_col = "track_id",
+  datetime_col = "datetime_gmt",
+  colony_flag_col = "at_colony",
+  trip_id_col = "trip_id"
+)
+
+segmented <- segmented %>%
+  mutate(
+    phase = case_when(
+      is.na(trip_id) ~ "colony",
+      Speed <= median(Speed, na.rm = TRUE) ~ "foraging",
+      TRUE ~ "commuting"
+    )
+  )
+
+trip_distance <- calc_trip_distance(segmented)
+
+trip_duration <- calc_trip_duration(
+  segmented,
+  units = "hours"
+)
+
+path_length <- calc_path_length(segmented)
+
+max_distance <- calc_max_distance_from_colony(
+  segmented,
+  colony_coords = colony_coords
+)
+
+trip_metrics <- trip_distance %>%
+  left_join(trip_duration, by = c("track_id", "trip_id")) %>%
+  left_join(path_length, by = c("track_id", "trip_id")) %>%
+  left_join(max_distance, by = c("track_id", "trip_id"))
+
+track_centroid <- calc_track_centroid(segmented)
+
+foraging_range <- calc_foraging_range(
+  segmented,
+  phase_col = "phase",
+  foraging_value = "foraging"
+)
+```
+
+## Next steps
+
+After calculating trip-level movement metrics, the next step is to summarize movement across individuals or the whole population. These outputs can then be used in later workflows for fisheries overlap, protected-area overlap, or marine spatial planning.
