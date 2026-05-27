@@ -11,7 +11,7 @@ library(Shearwater)
 library(dplyr)
 
 # Load data relative to project root
-prep_data <- read.csv("test data/extdata/sample_gfw.csv")
+prep_data <- read.csv("inst/extdata/sample_gfw.csv")
 
 # 1: Segmented trips
 segmented_data <- prep_data %>%
