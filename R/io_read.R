@@ -19,14 +19,12 @@
 #'
 #' @export
 read_gps_data <- function(file_path, format = "csv", ...) {
-
-
   if (!file.exists(file_path)) {
     stop("File not found: ", file_path)
   }
-
+  
   format <- tolower(trimws(format))
-
+  
   if (format == "csv") {
     raw <- readr::read_csv(file_path, show_col_types = FALSE, ...)
   } else {
@@ -35,10 +33,9 @@ read_gps_data <- function(file_path, format = "csv", ...) {
       "Currently supported formats: 'csv'."
     )
   }
-
-  # Attach source metadata as attributes for downstream traceability
+  
   attr(raw, "source_file") <- file_path
   attr(raw, "import_time") <- Sys.time()
-
+  
   raw
 }
