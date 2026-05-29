@@ -1,0 +1,81 @@
+---
+title: "importing-and-preparing-gps-data"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{importing-and-preparing-gps-data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup, message=FALSE, warning=FALSE}
+library(Shearwater)
+library(dplyr)
+library(geosphere)
+library(sf)
+```
+
+Introduction
+
+This vignette demonstrates how to load raw Wedge-tailed Shearwater GPS tracking data and prepare it for downstream spatial and behavioral analysis. We will walk through reading the data, standardizing the column schema, cleaning erroneous points, and running validation assertions to ensure data integrity.
+1. Importing the Data
+
+First, we load the raw GPS tracking data. For this example, we are using the Wedge-tailed Shearwater dataset provided by Lindsay.
+Code snippet
+
+# Read in the raw CSV file
+raw_data <- read_gps_data("example_wedgetailed_Shearwater_data.csv")
+
+2. Standardizing Columns
+
+Raw telemetry data can come in many different formats with varying column headers. To ensure our package functions work properly, we need to standardize the column names immediately upon import.
+
+Our package schema requires the following core columns: track_id, datetime_gmt, longitude, latitude, and at_colony.
+Code snippet
+
+# Map raw columns to the standard package schema
+std_data <- standardize_gps_columns(raw_data)
+
+3. Cleaning the Data & Flagging Colony Points
+
+Raw GPS data often contains spatial anomalies, extreme speed spikes, or duplicate timestamps. We need to filter these out before analysis.
+
+Once the data is clean, seabird tracking workflows require us to separate foraging trips from time spent sitting at the nest. We will flag which tracking points occurred while the bird was present at the breeding colony.
+Code snippet
+
+# Remove duplicates and speed outliers
+# Note: Using the team's top-level cleaning wrapper
+clean_data <- clean_tracks(std_data) 
+
+# Flag points within a specific radius of the colony coordinates
+colony_data <- identify_colony_visits(
+  track = clean_data,
+  lon_col = "longitude",
+  lat_col = "latitude",
+  colony_lon_col = "lon_colony", # Assuming these exist in the dataset
+  colony_lat_col = "lat_colony",
+  radius_m = 200
+) 
+
+4. Validation and Assertions
+
+Before passing this prepared data to complex analytical pipelines (like Kernel Utilization Distributions or Fisheries Overlap mapping), we must run strict assertions to guarantee the data structure is sound. If any of these checks fail, the functions will throw a descriptive error, preventing silent failures later in the analysis.
+Code snippet
+
+# Ensure all 5 critical columns exist
+assert_required_cols(colony_data)
+
+# Verify the timestamp is correctly parsed as POSIXct UTC/GMT
+assert_datetime_tz(colony_data)
+
+# Confirm the spatial data has a valid Coordinate Reference System (CRS)
+assert_crs(colony_data)
+
+With these steps complete, our tracking data is clean, standardized, validated, and ready for advanced spatial analysis.
+

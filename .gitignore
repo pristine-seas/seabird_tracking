@@ -1,2 +1,10 @@
 mergedchickdata_o7_2013-2014_.csv
 .Rproj.user
+.Rhistory
+.RData
+.httr-oauth
+.DS_Store
+.quarto
+inst/doc
+/doc/
+/Meta/
