@@ -1,12 +1,11 @@
 Type: Package
 Package: Shearwater
-Title: What the Package Does (Title Case)
+Title: Analyze Wedge-Tailed Shearwater Movement and Fisheries Overlap
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line) Use four
-    spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Author: Cooper Owen
+Maintainer: Cooper Owen <coopernowen@berkeley.edu>
+Description: Provides tools for cleaning GPS tracking data, segmenting trips, calculating movement metrics, and analyzing fisheries overlap for wedge-tailed shearwaters.
+License: MIT + file LICENSE
 URL: https://github.com/cooper61204/Shearwater
 BugReports: https://github.com/cooper61204/Shearwater/issues
 Depends: 
