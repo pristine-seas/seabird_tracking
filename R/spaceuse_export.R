@@ -1,107 +1,169 @@
 #' Calculate Trip Temporal and Spatial Displacement Statistics
 #'
-#' Evaluates overall elapsed duration windows per trip and calculates point-by-point
-#' geometric track distances relative to a static baseline breeding colony coordinate grid node.
+#' Evaluates elapsed trip duration and calculates point-by-point distance from
+#' a static breeding colony coordinate.
 #'
-#' @param tracks An \code{sf} tracking collection object. Must contain a valid \code{time}
-#'   field (POSIXct layout) and a string column named \code{trip_id}.
-#' @param colony_coords Numeric vector. A named vector containing keys \code{lon}
-#'   and \code{lat} specifying the geographic location of the home breeding colony.
+#' @param tracks An `sf` tracking object. Must contain a valid `time` column
+#'   in POSIXct format and a `trip_id` column.
+#' @param colony_coords Numeric vector. A named vector containing `lon` and
+#'   `lat`, specifying the breeding colony location.
 #'
-#' @return A modified version of the input \code{sf} object appended with three columns:
-#'   \item{duration_hrs}{Total elapsed time in hours evaluated over the active trip sequence.}
-#'   \item{dist_to_colony_m}{The instantaneous distance in meters between the tracked coordinate point and the colony footprint.}
-#'   \item{max_dist_km}{The maximum value of \code{dist_to_colony_m} converted to kilometers over the entire tracking series.}
+#' @return A modified version of the input `sf` object with three added columns:
+#'   `duration_hrs`, `dist_to_colony_m`, and `max_dist_km`.
+#'
 #' @export
-#'
-#'
-#' #' Calculate Spatial Polygon Surface Coverage Areas
-#'
-#' Evaluates geographic surface boundaries for calculated home range or core utilization
-#' polygons and appends explicit area sizing properties calculated in square kilometers.
-#'
-#' @param sf_polys An \code{sf} spatial polygon layer containing home range boundary geometries.
-#'
-#' @return The original \code{sf} data frame appended with a numeric metric column named \code{area_km2}.
-#' @export
-#'
-#'
-#' #' Extract Spatial Centroids from Area Features
-#'
-#' Computes the geographic center of mass (spatial midpoints) for calculated
-#' boundary polygons or utilization contours.
-#'
-#' @param sf_polys An \code{sf} spatial feature collection containing target polygons.
-#'
-#' @return An \code{sf} spatial point object representing feature centroids.
-#' @export
-#'
-
-library(adehabitatHR)
-library(sf)
-library(sp)
-
 calculate_trip_stats <- function(tracks, colony_coords) {
+  if (!inherits(tracks, "sf")) {
+    stop("`tracks` must be an sf object.")
+  }
 
-  # 1. Calculate time in hours for each trip
-  # Group by trip_id and find the difference between start and end
+  if (!all(c("time", "trip_id") %in% names(tracks))) {
+    stop("`tracks` must contain `time` and `trip_id` columns.")
+  }
+
+  if (!is.numeric(colony_coords) ||
+      !all(c("lon", "lat") %in% names(colony_coords))) {
+    stop("`colony_coords` must be a named numeric vector with names `lon` and `lat`.")
+  }
+
   tracks <- tracks %>%
     dplyr::group_by(trip_id) %>%
     dplyr::mutate(
-      duration_hrs = as.numeric(difftime(max(time), min(time), units = "hours"))
-    )
-
-  # 2. Calculate distance from colony in meters
-  # Create a spatial point for the colony
-  colony_sf <- sf::st_sfc(sf::st_point(colony_coords), crs = sf::st_crs(tracks))
-
-  # Calculate distance for every point in the track
-  tracks$dist_to_colony_m <- as.numeric(sf::st_distance(tracks, colony_sf))
-
-  # 3. Derive Max Distance from Colony (Objective 2 requirement)
-  tracks <- tracks %>%
-    dplyr::mutate(max_dist_km = max(dist_to_colony_m) / 1000) %>%
+      duration_hrs = as.numeric(
+        difftime(
+          max(time, na.rm = TRUE),
+          min(time, na.rm = TRUE),
+          units = "hours"
+        )
+      )
+    ) %>%
     dplyr::ungroup()
 
-  return(tracks)
+  colony_sf <- sf::st_sfc(
+    sf::st_point(c(colony_coords[["lon"]], colony_coords[["lat"]])),
+    crs = sf::st_crs(tracks)
+  )
+
+  tracks$dist_to_colony_m <- as.numeric(sf::st_distance(tracks, colony_sf))
+
+  tracks <- tracks %>%
+    dplyr::group_by(trip_id) %>%
+    dplyr::mutate(
+      max_dist_km = max(dist_to_colony_m, na.rm = TRUE) / 1000
+    ) %>%
+    dplyr::ungroup()
+
+  tracks
 }
 
-#This needs to be revisited
+
+#' Calculate Spatial Polygon Surface Coverage Areas
+#'
+#' Evaluates geographic surface boundaries for calculated home range or core
+#' utilization polygons and appends area values in square kilometers.
+#'
+#' @param sf_polys An `sf` spatial polygon layer containing home range boundary
+#'   geometries.
+#'
+#' @return The original `sf` data frame with a numeric column named `area_km2`.
+#'
+#' @export
 calculate_area_metrics <- function(sf_polys) {
-  # Calculate area in square kilometers
+  if (!inherits(sf_polys, "sf")) {
+    stop("`sf_polys` must be an sf object.")
+  }
+
   sf_polys$area_km2 <- as.numeric(sf::st_area(sf_polys)) / 1e6
-  return(sf_polys)
+
+  sf_polys
 }
 
+
+#' Extract Spatial Centroids from Area Features
+#'
+#' Computes geographic centroids for calculated boundary polygons or utilization
+#' contours.
+#'
+#' @param sf_polys An `sf` spatial feature collection containing target polygons.
+#'
+#' @return An `sf` spatial point object representing feature centroids.
+#'
+#' @export
 get_spatial_centroids <- function(sf_polys) {
-  # Compute the geometric center of the core foraging areas
-  centroids <- sf::st_centroid(sf_polys)
-  return(centroids)
+  if (!inherits(sf_polys, "sf")) {
+    stop("`sf_polys` must be an sf object.")
+  }
+
+  sf::st_centroid(sf_polys)
 }
 
+
+#' Export Space-Use Layers
+#'
+#' Exports an `sf` spatial object as a GeoPackage file.
+#'
+#' @param sf_obj An `sf` spatial object to export.
+#' @param filename Character. Output filename without the `.gpkg` extension.
+#'
+#' @return Invisibly returns the path to the written GeoPackage file.
+#'
+#' @export
 export_spaceuse_layers <- function(sf_obj, filename) {
-  # Ensure units are explicit in metadata before export
-  sf::st_write(sf_obj, dsn = paste0(filename, ".gpkg"), append = FALSE)
+  if (!inherits(sf_obj, "sf")) {
+    stop("`sf_obj` must be an sf object.")
+  }
+
+  if (!is.character(filename) || length(filename) != 1) {
+    stop("`filename` must be a single character string.")
+  }
+
+  out_path <- paste0(filename, ".gpkg")
+
+  sf::st_write(
+    sf_obj,
+    dsn = out_path,
+    append = FALSE,
+    quiet = TRUE
+  )
+
+  invisible(out_path)
 }
+
+
 #' Plot Home Range and Core Space-Use Hotspots
 #'
-#' Generates a production-ready spatial map illustrating core home range boundaries
-#' and utilization polygons without requiring downstream visualization dependencies.
+#' Generates a spatial map illustrating core home range boundaries and
+#' utilization polygons.
 #'
-#' @param sf_polys An \code{sf} polygon dataset generated by \code{get_isopleths}.
-#' @param title Character. The map graphic header. Default is "Seabird Space-Use Hotspots".
+#' @param sf_polys An `sf` polygon dataset generated by `get_isopleths()`.
+#' @param title Character. The map title. Default is
+#'   `"Seabird Space-Use Hotspots"`.
 #'
-#' @return A functional \code{ggplot2} mapping plot object.
+#' @return A `ggplot2` plot object.
+#'
 #' @export
 plot_hotspot_map <- function(sf_polys, title = "Seabird Space-Use Hotspots") {
   if (!inherits(sf_polys, "sf")) {
-    stop("Input 'sf_polys' must be a valid sf spatial features collection.")
+    stop("Input `sf_polys` must be a valid sf spatial features collection.")
   }
 
-  # Build plot mapping bounds
-  plt <- ggplot2::ggplot() +
-    ggplot2::geom_sf(data = sf_polys, ggplot2::aes(fill = id), alpha = 0.4, color = "black") +
-    ggplot2::scale_fill_viridis_d(option = "viridis", name = "UD Threshold (%)") +
+  fill_col <- if ("id" %in% names(sf_polys)) {
+    "id"
+  } else {
+    names(sf_polys)[1]
+  }
+
+  ggplot2::ggplot() +
+    ggplot2::geom_sf(
+      data = sf_polys,
+      ggplot2::aes(fill = .data[[fill_col]]),
+      alpha = 0.4,
+      color = "black"
+    ) +
+    ggplot2::scale_fill_viridis_d(
+      option = "viridis",
+      name = "UD Threshold (%)"
+    ) +
     ggplot2::labs(
       title = title,
       subtitle = "Computed Core Areas (50%) and Range Extents (95%)",
@@ -113,6 +175,4 @@ plot_hotspot_map <- function(sf_polys, title = "Seabird Space-Use Hotspots") {
       plot.title = ggplot2::element_text(face = "bold", size = 14),
       legend.position = "right"
     )
-
-  return(plt)
 }

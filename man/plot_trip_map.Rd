@@ -13,16 +13,13 @@ plot_trip_map(
 )
 }
 \arguments{
-\item{trip_data}{A track tibble containing a \code{trip_id} column
-(output of Person 4's \code{segment_trips()}).}
+\item{trip_data}{A track tibble containing a \code{trip_id} column.}
 
-\item{trip_ids}{Character or integer vector of trip IDs to plot. If
-\code{NULL} (default), all trips are shown.}
+\item{trip_ids}{Character or integer vector of trip IDs to plot. If \code{NULL} (default), all trips are shown.}
 
 \item{colony_coords}{Named numeric vector with \code{lon} and \code{lat}.}
 
-\item{color_by}{Character. Column to color-code trips by. Default:
-\code{"trip_id"}.}
+\item{color_by}{Character. Column to color-code trips by. Default: \code{"trip_id"}.}
 
 \item{title}{Character. Plot title.}
 }
@@ -32,11 +29,4 @@ A \code{ggplot2} plot object.
 \description{
 Plots a subset of trips from a trip-segmented track table. Highlights
 departure and return points and marks the colony.
-}
-\examples{
-\dontrun{
-plot_trip_map(segmented_tracks,
-             trip_ids      = c(1, 2, 3),
-             colony_coords = c(lon = -175.3, lat = -19.8))
-}
 }

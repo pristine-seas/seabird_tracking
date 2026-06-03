@@ -16,30 +16,46 @@ estimate_space_use(
 )
 }
 \arguments{
-\item{file_path}{Character. Path to the raw telemetry dataset.}
+\item{file_path}{Character. Path to the raw GPS telemetry dataset.}
 
-\item{col_map}{Named character vector. Naming lookups for column standardization.}
+\item{col_map}{Optional named character vector used for column
+standardization.}
 
-\item{max_speed}{Numeric. Threshold velocity limit for filtering outliers.}
+\item{max_speed}{Numeric. Maximum allowed speed for filtering outlier fixes.}
 
-\item{speed_col}{Character. Column name storing velocity variables.}
+\item{speed_col}{Character. Name of the speed column.}
 
-\item{interval_minutes}{Numeric. Resampling minutes for grid synchronization.}
+\item{interval_minutes}{Numeric. Time interval, in minutes, used to
+regularize tracks.}
 
-\item{colony_coords}{Numeric vector. Named elements `lon` and `lat` of breeding grounds.}
+\item{colony_coords}{Named numeric vector with `lon` and `lat` giving the
+breeding colony location.}
 
-\item{kud_ref}{Character. Bandwidth selection parameter (e.g., "href" or "LSCV").}
+\item{kud_ref}{Character or numeric. Kernel smoothing parameter passed to
+`calculate_kud()`. Common options are `"href"` and `"LSCV"`.}
 
-\item{density_levels}{Numeric vector. Percentage thresholds for home range core boundaries.}
+\item{density_levels}{Numeric vector. Utilization distribution percentage
+thresholds used to extract isopleths, such as `c(50, 95)`.}
 }
 \value{
 A named list containing:
-  \item{cleaned_tracks}{An sf object of the filtered, regularized spatial points.}
-  \item{kud_estimates}{The raw KernelUD object from adehabitatHR.}
-  \item{isopleth_polygons}{An sf data frame with computed area boundary contours.}
-  \item{trip_summaries}{Summarized trajectory distances, durations, and dimensions.}
+\describe{
+  \item{cleaned_tracks}{An `sf` object containing filtered and regularized
+  tracking points with trip statistics.}
+  \item{kud_estimates}{A kernel utilization distribution object produced by
+  `calculate_kud()`.}
+  \item{isopleth_polygons}{An `sf` object containing utilization distribution
+  contour polygons with area metrics.}
+  \item{trip_summaries}{A data frame of trip-level distance, duration, and
+  colony-distance summaries.}
+}
 }
 \description{
-Orchestrates the entire tracking pipeline from raw data import through spatial
-home range estimation using functions provided by Persons 1, 2, 3, 4, and 6.
+Runs the main space-use workflow from raw GPS data import through data
+cleaning, regularization, kernel utilization distribution estimation,
+isopleth extraction, area calculation, and trip-level movement summaries.
+}
+\details{
+This function is intended as a high-level convenience wrapper that combines
+lower-level Shearwater package functions into one reproducible workflow.
 }

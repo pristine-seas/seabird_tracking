@@ -1,22 +1,38 @@
 #' Top-Level Space-Use Analysis Wrapper
 #'
-#' Orchestrates the entire tracking pipeline from raw data import through spatial
-#' home range estimation using functions provided by Persons 1, 2, 3, 4, and 6.
+#' Runs the main space-use workflow from raw GPS data import through data
+#' cleaning, regularization, kernel utilization distribution estimation,
+#' isopleth extraction, area calculation, and trip-level movement summaries.
 #'
-#' @param file_path Character. Path to the raw telemetry dataset.
-#' @param col_map Named character vector. Naming lookups for column standardization.
-#' @param max_speed Numeric. Threshold velocity limit for filtering outliers.
-#' @param speed_col Character. Column name storing velocity variables.
-#' @param interval_minutes Numeric. Resampling minutes for grid synchronization.
-#' @param colony_coords Numeric vector. Named elements `lon` and `lat` of breeding grounds.
-#' @param kud_ref Character. Bandwidth selection parameter (e.g., "href" or "LSCV").
-#' @param density_levels Numeric vector. Percentage thresholds for home range core boundaries.
+#' This function is intended as a high-level convenience wrapper that combines
+#' lower-level Shearwater package functions into one reproducible workflow.
+#'
+#' @param file_path Character. Path to the raw GPS telemetry dataset.
+#' @param col_map Optional named character vector used for column
+#'   standardization.
+#' @param max_speed Numeric. Maximum allowed speed for filtering outlier fixes.
+#' @param speed_col Character. Name of the speed column.
+#' @param interval_minutes Numeric. Time interval, in minutes, used to
+#'   regularize tracks.
+#' @param colony_coords Named numeric vector with `lon` and `lat` giving the
+#'   breeding colony location.
+#' @param kud_ref Character or numeric. Kernel smoothing parameter passed to
+#'   `calculate_kud()`. Common options are `"href"` and `"LSCV"`.
+#' @param density_levels Numeric vector. Utilization distribution percentage
+#'   thresholds used to extract isopleths, such as `c(50, 95)`.
 #'
 #' @return A named list containing:
-#'   \item{cleaned_tracks}{An sf object of the filtered, regularized spatial points.}
-#'   \item{kud_estimates}{The raw KernelUD object from adehabitatHR.}
-#'   \item{isopleth_polygons}{An sf data frame with computed area boundary contours.}
-#'   \item{trip_summaries}{Summarized trajectory distances, durations, and dimensions.}
+#' \describe{
+#'   \item{cleaned_tracks}{An `sf` object containing filtered and regularized
+#'   tracking points with trip statistics.}
+#'   \item{kud_estimates}{A kernel utilization distribution object produced by
+#'   `calculate_kud()`.}
+#'   \item{isopleth_polygons}{An `sf` object containing utilization distribution
+#'   contour polygons with area metrics.}
+#'   \item{trip_summaries}{A data frame of trip-level distance, duration, and
+#'   colony-distance summaries.}
+#' }
+#'
 #' @export
 estimate_space_use <- function(file_path,
                                col_map = NULL,
@@ -26,33 +42,91 @@ estimate_space_use <- function(file_path,
                                colony_coords = c(lon = 0, lat = 0),
                                kud_ref = "href",
                                density_levels = c(50, 95)) {
+  # -------------------------------------------------------------------------
+  # Input validation
+  # -------------------------------------------------------------------------
 
+  if (!is.character(file_path) || length(file_path) != 1 || is.na(file_path)) {
+    stop("`file_path` must be a single non-missing character string.", call. = FALSE)
+  }
 
-  # =========================================================================
-  # STEP 1: Import & Standardization
-  # =========================================================================
+  if (!file.exists(file_path)) {
+    stop("File does not exist: ", file_path, call. = FALSE)
+  }
 
-  raw_data <- io_read::read_gps_data(file_path = file_path, format = "csv")
-  std_data <- io_standardize::standardize_gps_columns(raw_data = raw_data, col_map = col_map)
+  if (!is.numeric(max_speed) || length(max_speed) != 1 || max_speed <= 0) {
+    stop("`max_speed` must be a single positive number.", call. = FALSE)
+  }
 
-  # Map standard target names down to expected internal structural parameters
-  # mapping back to clean-filter variables: ID, Date, Time, Latitude, Longitude
+  if (!is.character(speed_col) || length(speed_col) != 1) {
+    stop("`speed_col` must be a single character string.", call. = FALSE)
+  }
+
+  if (!is.numeric(interval_minutes) ||
+      length(interval_minutes) != 1 ||
+      interval_minutes <= 0) {
+    stop("`interval_minutes` must be a single positive number.", call. = FALSE)
+  }
+
+  if (!is.numeric(colony_coords) ||
+      !all(c("lon", "lat") %in% names(colony_coords))) {
+    stop(
+      "`colony_coords` must be a named numeric vector with names `lon` and `lat`.",
+      call. = FALSE
+    )
+  }
+
+  if (!is.numeric(density_levels) || length(density_levels) < 1) {
+    stop("`density_levels` must be a numeric vector.", call. = FALSE)
+  }
+
+  if (any(density_levels <= 0 | density_levels >= 100)) {
+    stop("`density_levels` must contain values greater than 0 and less than 100.",
+         call. = FALSE)
+  }
+
+  # -------------------------------------------------------------------------
+  # Step 1: Import and standardize raw GPS data
+  # -------------------------------------------------------------------------
+
+  raw_data <- read_gps_data(
+    file_path = file_path,
+    format = "csv"
+  )
+
+  std_data <- standardize_gps_columns(
+    raw_data = raw_data,
+    col_map = col_map
+  )
+
+  needed_standard_cols <- c("timestamp", "bird_id", "lat", "lon")
+  missing_standard_cols <- setdiff(needed_standard_cols, names(std_data))
+
+  if (length(missing_standard_cols) > 0) {
+    stop(
+      "After standardization, data is missing required columns: ",
+      paste(missing_standard_cols, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  # Convert package-wide standard names to names expected by cleaning functions.
   std_data <- std_data %>%
     dplyr::mutate(
-      Date = format(timestamp, "%m/%d/%Y"),
-      Time = format(timestamp, "%H:%M:%S")
+      Date = format(.data$timestamp, "%m/%d/%Y"),
+      Time = format(.data$timestamp, "%H:%M:%S")
     ) %>%
     dplyr::rename(
-      ID = bird_id,
-      Latitude = lat,
-      Longitude = lon
+      ID = .data$bird_id,
+      Latitude = .data$lat,
+      Longitude = .data$lon
     )
 
-  # =========================================================================
-  # STEP 2: Quality Control & Filtering
-  # =========================================================================
+  # -------------------------------------------------------------------------
+  # Step 2: Quality control and filtering
+  # -------------------------------------------------------------------------
 
-  clean_data <- clean_filters::remove_duplicate_fixes(
+  clean_data <- remove_duplicate_fixes(
     df = std_data,
     id_col = "ID",
     datetime_col = NULL,
@@ -61,7 +135,7 @@ estimate_space_use <- function(file_path,
   )
 
   if (speed_col %in% names(clean_data)) {
-    clean_data <- clean_filters::filter_speed_outliers(
+    clean_data <- filter_speed_outliers(
       df = clean_data,
       max_speed = max_speed,
       speed_col = speed_col,
@@ -69,10 +143,11 @@ estimate_space_use <- function(file_path,
     )
   }
 
-  # =========================================================================
-  # STEP 3: Spatiotemporal Regularization
-  # =========================================================================
-  regular_data <- clean_regularize::regularize_tracks(
+  # -------------------------------------------------------------------------
+  # Step 3: Spatiotemporal regularization
+  # -------------------------------------------------------------------------
+
+  regular_data <- regularize_tracks(
     df = clean_data,
     id_col = "ID",
     date_col = "Date",
@@ -82,20 +157,31 @@ estimate_space_use <- function(file_path,
     interval_minutes = interval_minutes
   )
 
-  # Clean up structural missing records introduced during timeline regularization
   regular_data <- regular_data %>%
-    dplyr::filter(!is.na(Latitude) & !is.na(Longitude))
-
-  # Re-expose package-wide schema variables required for Person 4 and 6 downstream
-  regular_data <- regular_data %>%
-    dplyr::rename(
-      track_id = id,
-      datetime_gmt = datetime_regular,
-      latitude = Latitude,
-      longitude = Longitude
+    dplyr::filter(
+      !is.na(.data$Latitude),
+      !is.na(.data$Longitude)
     )
 
-  # Convert regularized tracking table to sf object (WGS84 projection code 4326)
+  needed_regular_cols <- c("id", "datetime_regular", "Latitude", "Longitude")
+  missing_regular_cols <- setdiff(needed_regular_cols, names(regular_data))
+
+  if (length(missing_regular_cols) > 0) {
+    stop(
+      "After regularization, data is missing required columns: ",
+      paste(missing_regular_cols, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  regular_data <- regular_data %>%
+    dplyr::rename(
+      track_id = .data$id,
+      datetime_gmt = .data$datetime_regular,
+      latitude = .data$Latitude,
+      longitude = .data$Longitude
+    )
+
   tracks_sf <- sf::st_as_sf(
     regular_data,
     coords = c("longitude", "latitude"),
@@ -103,22 +189,18 @@ estimate_space_use <- function(file_path,
     remove = FALSE
   )
 
-  # Validate schema properties before spatial compilation
-  utils_schema::validate_gps_data(tracks_sf, strict = FALSE)
+  validate_gps_data(tracks_sf, strict = FALSE)
 
-  # =========================================================================
-  # STEP 4: Segmentations & Trajectory Metrics (Person 4)
-  # =========================================================================
+  # -------------------------------------------------------------------------
+  # Step 4: Trip identifiers and movement metrics
+  # -------------------------------------------------------------------------
 
-
-  # Check if a trip identifier column exists; mock one if trip segmentation pipeline isn't automated
   if (!"trip_id" %in% names(tracks_sf)) {
     tracks_sf$trip_id <- paste0(tracks_sf$track_id, "_trip1")
   }
 
-  # Compute step displacement characteristics
-  trip_dist <- trip_metrics::calc_trip_distance(
-    trip_data = as.data.frame(tracks_sf),
+  trip_dist <- calc_trip_distance(
+    trip_data = sf::st_drop_geometry(tracks_sf),
     bird_id_col = "track_id",
     trip_id_col = "trip_id",
     datetime_col = "datetime_gmt",
@@ -126,46 +208,57 @@ estimate_space_use <- function(file_path,
     lat_col = "latitude"
   )
 
-  # =========================================================================
-  # STEP 5: Space-Use & Home Ranges
-  # =========================================================================
+  # -------------------------------------------------------------------------
+  # Step 5: Space-use and home-range estimation
+  # -------------------------------------------------------------------------
 
-  # Re-expose traditional time formatting elements required by legacy spatial tools
-  tracks_sf <- tracks_sf %>% dplyr::mutate(time = datetime_gmt)
+  tracks_sf <- tracks_sf %>%
+    dplyr::mutate(time = .data$datetime_gmt)
 
-  # Run your package module to extract the mathematical kernel calculations
-  kud_output <- spaceuse_kud::calculate_kud(tracks = tracks_sf, ref = kud_ref)
+  kud_output <- calculate_kud(
+    tracks = tracks_sf,
+    ref = kud_ref
+  )
 
-  # Construct boundary polygon contours using your extraction script
-  isopleth_polygons <- spaceuse_kud::get_isopleths(kud = kud_output, levels = density_levels)
+  isopleth_polygons <- get_isopleths(
+    kud = kud_output,
+    levels = density_levels
+  )
 
-  # Add area calculations to spatial polygons
-  isopleth_polygons <- spaceuse_export::calculate_area_metrics(sf_polys = isopleth_polygons)
+  isopleth_polygons <- calculate_area_metrics(
+    sf_polys = isopleth_polygons
+  )
 
-  # Calculate geographic distance summaries relative to colony coordinate nodes
-  tracks_with_stats <- spaceuse_export::calculate_trip_stats(
+  tracks_with_stats <- calculate_trip_stats(
     tracks = tracks_sf,
     colony_coords = colony_coords
   )
 
-  # Compile consolidated trip metrics with bounding summaries
+  # -------------------------------------------------------------------------
+  # Step 6: Final trip summaries
+  # -------------------------------------------------------------------------
+
   final_trip_summaries <- tracks_with_stats %>%
     sf::st_drop_geometry() %>%
-    dplyr::group_by(track_id, trip_id) %>%
+    dplyr::group_by(.data$track_id, .data$trip_id) %>%
     dplyr::summarise(
-      max_distance_colony_km = max(max_dist_km, na.rm = TRUE),
-      duration_hours = max(duration_hrs, na.rm = TRUE),
+      max_distance_colony_km = max(.data$max_dist_km, na.rm = TRUE),
+      duration_hours = max(.data$duration_hrs, na.rm = TRUE),
       .groups = "drop"
     ) %>%
-    dplyr::left_join(trip_dist, by = c("track_id", "trip_id"))
-
-  # Return structured results
-  return(
-    list(
-      cleaned_tracks     = tracks_with_stats,
-      kud_estimates      = kud_output,
-      isopleth_polygons  = isopleth_polygons,
-      trip_summaries     = final_trip_summaries
+    dplyr::left_join(
+      trip_dist,
+      by = c("track_id", "trip_id")
     )
+
+  # -------------------------------------------------------------------------
+  # Return results
+  # -------------------------------------------------------------------------
+
+  list(
+    cleaned_tracks = tracks_with_stats,
+    kud_estimates = kud_output,
+    isopleth_polygons = isopleth_polygons,
+    trip_summaries = final_trip_summaries
   )
 }

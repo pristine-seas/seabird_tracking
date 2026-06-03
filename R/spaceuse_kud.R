@@ -1,65 +1,92 @@
-#' Calculate Kernel Utilization Distributions (KUD)
+#' Calculate Kernel Utilization Distributions
 #'
-#' Converts spatial tracking features into a legacy SpatialPoints object to estimate
-#' fixed kernel utilization distributions grouped by unique trip sequences using adehabitatHR.
+#' Converts spatial tracking features into a legacy `SpatialPointsDataFrame`
+#' object and estimates fixed kernel utilization distributions grouped by
+#' `trip_id` using `adehabitatHR`.
 #'
-#' @param tracks An \code{sf} spatial object containing coordinate locations. Must include
-#'   a \code{trip_id} column group string and a valid spatial geometry attribute.
-#' @param ref Character or Numeric. The smoothing bandwidth parameter selection method.
-#'   Options include \code{"href"} (ad-hoc bandwidth selection) or \code{"LSCV"}
-#'   (least-squares cross-validation). Default is \code{"href"}.
-#' @return A \code{EstUDm} object containing calculated utilization distributions
-#'   for each unique \code{trip_id}.
+#' @param tracks An `sf` spatial object containing GPS point locations. Must
+#'   include a `trip_id` column and valid point geometry.
+#' @param ref Character or numeric. The smoothing bandwidth parameter selection
+#'   method. Common options are `"href"` for ad-hoc bandwidth selection or
+#'   `"LSCV"` for least-squares cross-validation. Default is `"href"`.
+#'
+#' @return An `EstUDm` object containing calculated utilization distributions
+#'   for each unique `trip_id`.
+#'
 #' @export
-#'
-#'
+calculate_kud <- function(tracks, ref = "href") {
+  if (!inherits(tracks, "sf")) {
+    stop("`tracks` must be an sf object.")
+  }
+
+  if (!"trip_id" %in% names(tracks)) {
+    stop("`tracks` must contain a `trip_id` column.")
+  }
+
+  if (any(sf::st_is_empty(tracks))) {
+    stop("`tracks` contains empty geometries.")
+  }
+
+  coords <- sf::st_coordinates(tracks)
+
+  track_data <- sf::st_drop_geometry(tracks)
+
+  sp_df <- sp::SpatialPointsDataFrame(
+    coords = coords,
+    data = as.data.frame(track_data),
+    proj4string = sp::CRS(sf::st_crs(tracks)$wkt)
+  )
+
+  kud <- adehabitatHR::kernelUD(
+    sp_df[, "trip_id"],
+    h = ref
+  )
+
+  kud
+}
+
+
 #' Extract Home Range Isopleth Polygons
 #'
-#' Extracts boundary contour vertices from calculated kernel distributions at
-#' user-defined cumulative utilization percentage thresholds, looping safely
-#' over multiple levels.
+#' Extracts home range or core-use polygons from calculated kernel utilization
+#' distributions at user-defined utilization percentage thresholds.
 #'
-#' @param kud An \code{EstUDm} object resulting from \code{calculate_kud()}.
-#' @param levels Numeric vector. Cumulative percentage utilization distribution thresholds
-#'   representing core vs. total range boundaries (e.g., \code{50} and \code{95}).
+#' @param kud An `EstUDm` object produced by `calculate_kud()`.
+#' @param levels Numeric vector. Utilization distribution thresholds to extract,
+#'   such as `c(50, 95)`.
 #'
-#' @return An \code{sf} data frame containing polygon shapes matching the designated percentage fields.
+#' @return An `sf` data frame containing isopleth polygon geometries and a
+#'   `level_pct` column identifying the utilization threshold.
+#'
 #' @export
-
-library(adehabitatHR)
-library(sf)
-library(sp)
-
-
-calculate_kud <- function(tracks, ref = "href") {
-  # Convert sf to SpatialPointsDataFrame for adehabitatHR
-  coords <- sf::st_coordinates(tracks)
-  sp_df <- sp::SpatialPointsDataFrame(coords, data = as.data.frame(tracks))
-  # Calculate KUD
-  kud <- adehabitatHR::kernelUD(sp_df[, "trip_id"], h = ref)
-  return(kud)
-}
-
-
 get_isopleths <- function(kud, levels = c(50, 95)) {
-  # Loop over each requested percentage level individually since adehabitatHR
-  # cannot handle vectors of length > 1 for multi-track (EstUDm) objects.
-  poly_list <- lapply(levels, function(lvl) {
-    # Extract the polygon shapes for all trips at this single level
-    polys_at_lvl <- adehabitatHR::getverticeshr(kud, percent = lvl)
+  if (!inherits(kud, "EstUDm")) {
+    stop("`kud` must be an EstUDm object produced by `calculate_kud()`.")
+  }
 
-    # Coerce to sf format
+  if (!is.numeric(levels) || length(levels) < 1) {
+    stop("`levels` must be a numeric vector.")
+  }
+
+  if (any(levels <= 0 | levels >= 100)) {
+    stop("`levels` must contain values greater than 0 and less than 100.")
+  }
+
+  poly_list <- lapply(levels, function(lvl) {
+    polys_at_lvl <- adehabitatHR::getverticeshr(
+      kud,
+      percent = lvl
+    )
+
     sf_at_lvl <- sf::st_as_sf(polys_at_lvl)
 
-    # Add a column indicating which threshold level this row represents
-    # This is critical for downstream plotting (Person 6) and policy reporting (Person 9)
     sf_at_lvl$level_pct <- as.character(lvl)
-    return(sf_at_lvl)
+
+    sf_at_lvl
   })
 
-  # Combine all individual level layers into a single clean sf data frame
   sf_polys <- dplyr::bind_rows(poly_list)
-  return(sf_polys)
-}
 
+  sf_polys
+}
 

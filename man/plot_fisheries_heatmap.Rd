@@ -18,11 +18,11 @@ plot_fisheries_heatmap(
 column to plot.}
 
 \item{fill_col}{Character string. Name of the overlap or risk column to use
-for fill color.}
+for fill color. Default: `"total_overlap"`.}
 
-\item{border_color}{Character string. Polygon border color.}
+\item{border_color}{Character string. Polygon border color. Default: `"grey40"`.}
 
-\item{na_color}{Character string. Fill color for missing values.}
+\item{na_color}{Character string. Fill color for missing values. Default: `"white"`.}
 
 \item{title}{Optional character string for the plot title.}
 

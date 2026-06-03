@@ -26,20 +26,7 @@ column map.
 \examples{
 \dontrun{
 raw <- read_gps_data("data/bird_tracks_2014.csv")
-
 std <- standardize_gps_columns(raw)
-
-std <- standardize_gps_columns(
-  raw,
-  col_map = c(
-    bird_id = "BirdCode",
-    timestamp = "UTC_DateTime",
-    lon = "Lon_DD",
-    lat = "Lat_DD",
-    colony = "Site",
-    device_id = "GLS_ID"
-  )
-)
 }
 
 }

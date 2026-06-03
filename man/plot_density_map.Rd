@@ -18,11 +18,5 @@ A \code{ggplot2} plot object.
 }
 \description{
 Creates a 2-D density (heatmap-style) plot showing where birds spend the
-most time across the study area. Useful as a quick alternative to a full
-kernel UD (Person 6) during early QA.
-}
-\examples{
-\dontrun{
-plot_density_map(cleaned_tracks)
-}
+most time across the study area.
 }

@@ -12,7 +12,7 @@ plot_tracks(
 )
 }
 \arguments{
-\item{track_data}{A data frame or tibble containing longitude and latitude columns.}
+\item{track_data}{A data frame or tibble containing longitude (`lon`) and latitude (`lat`) columns.}
 
 \item{color_by}{Character. Column used to color tracks. Default is `"bird_id"`.}
 
@@ -26,11 +26,4 @@ A `ggplot2` plot object.
 \description{
 Creates a map of GPS tracks for one or more individuals. Useful for quick
 visual QA immediately after import or cleaning.
-}
-\examples{
-\dontrun{
-std <- standardize_gps_columns(read_gps_data("tracks.csv"))
-plot_tracks(std, colony_coords = c(lon = -175.3, lat = -19.8))
-}
-
 }
