@@ -1,0 +1,465 @@
+---
+title: "Individual, Population, and Conservation Summaries"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Individual, Population, and Conservation Summaries}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+```{r setup, message=FALSE, warning=FALSE}
+library(Shearwater)
+library(dplyr)
+library(geosphere)
+library(sf)
+```
+
+## Overview
+
+This vignette picks up at the end of the movement-metrics pipeline. By this
+point your data have been read in, cleaned, and segmented into foraging trips
+(Vignettes 1–3). Here we:
+
+1. Aggregate per-trip metrics to **individual** and **population** level.
+2. Estimate each bird's **foraging range** as a spatial polygon.
+3. **Map** the raw tracks.
+4. **Export** summary tables and GIS layers for reporting.
+
+Standard column names used throughout the package:
+
+| Concept | Column name |
+|---|---|
+| Individual ID | `track_id` |
+| Timestamp (UTC) | `datetime_gmt` |
+| Longitude | `longitude` |
+| Latitude | `latitude` |
+| At-colony flag | `at_colony` |
+| Trip ID | `trip_id` |
+| Behavioural phase | `phase` |
+
+---
+
+## 1  Load and standardise the example data
+
+```{r load-data}
+raw <- read_gps_data(
+  system.file("extdata", "wtsh_example.csv", package = "Shearwater")
+)
+
+tracks <- standardize_gps_columns(
+  raw,
+  col_map = list(
+    track_id     = "ID",
+    datetime_gmt = "datetime_gmt",
+    longitude    = "Longitude",
+    latitude     = "Latitude",
+    at_colony    = "at_colony"
+  )
+)
+
+# Colony location — Kaena Point, Oahu
+colony <- c(lon = -158.276, lat = 21.574)
+```
+
+---
+
+## 2  Build the per-trip metrics table
+
+Cleaning, segmentation, and individual metric calculation are covered in
+Vignettes 2–3. `summarize_movement()` runs the full pipeline in one call and
+returns a named list containing every intermediate result.
+
+```{r run-pipeline, eval=FALSE}
+results <- summarize_movement(
+  track           = tracks,
+  colony_coords   = colony,
+  bird_id_col     = "track_id",
+  datetime_col    = "datetime_gmt",
+  lon_col         = "longitude",
+  lat_col         = "latitude",
+  colony_flag_col = "at_colony",
+  duration_units  = "hours",
+  include_spatial = TRUE
+)
+
+# Unpack the results list
+trip_metrics       <- results$trip_metrics
+individual_metrics <- results$individual_metrics
+population_metrics <- results$population_metrics
+foraging_ranges    <- results$foraging_ranges
+```
+
+For the rest of this vignette we use a representative mock table built from
+realistic Wedge-tailed Shearwater values so the code runs without the full
+upstream pipeline.
+
+```{r mock-trip-metrics}
+# Distances / path lengths in metres; duration in hours (set by duration_units).
+trip_metrics <- tibble::tribble(
+  ~track_id,  ~trip_id, ~trip_duration, ~trip_distance_m,
+              ~path_length_m, ~max_distance_from_colony_m,
+  "WTSH_001", 1L,  33.6,  312400,  485200,  68300,
+  "WTSH_001", 2L,  38.8,  445200,  621000,  89400,
+  "WTSH_002", 1L,  18.0,  189300,  285100,  42100,
+  "WTSH_002", 2L,  36.0,  398700,  591200,  78900,
+  "WTSH_002", 3L,  21.0,  215600,  318400,  51300,
+  "WTSH_003", 1L,  18.0,  178400,  261500,  38700,
+  "WTSH_004", 1L,  42.0,  421500,  628900,  85200,
+  "WTSH_004", 2L,  38.0,  387200,  578100,  79600,
+  "WTSH_005", 1L,  18.0,  195800,  291400,  45200
+)
+
+glimpse(trip_metrics)
+```
+
+---
+
+## 3  Individual-level summaries — `summarize_individual_metrics()`
+
+`summarize_individual_metrics()` collapses the per-trip table to **one row per
+bird**. For each metric column it computes the mean, maximum, and running total
+across that bird's trips.
+
+```{r individual-summary, eval=FALSE}
+individual_metrics <- summarize_individual_metrics(
+  trip_metrics     = trip_metrics,
+  bird_id_col      = "track_id",
+  trip_id_col      = "trip_id",
+  distance_col     = "trip_distance_m",
+  duration_col     = "trip_duration",
+  path_length_col  = "path_length_m",
+  max_distance_col = "max_distance_from_colony_m"
+)
+```
+
+```{r individual-summary-mock, echo=FALSE}
+# Mirrors the output of summarize_individual_metrics() exactly.
+individual_metrics <- trip_metrics |>
+  group_by(track_id) |>
+  summarise(
+    n_trips                         = n_distinct(trip_id),
+    mean_trip_distance_m            = mean(trip_distance_m,           na.rm = TRUE),
+    max_trip_distance_m             = max(trip_distance_m,            na.rm = TRUE),
+    total_trip_distance_m           = sum(trip_distance_m,            na.rm = TRUE),
+    mean_trip_duration              = mean(trip_duration,             na.rm = TRUE),
+    max_trip_duration               = max(trip_duration,              na.rm = TRUE),
+    total_trip_duration             = sum(trip_duration,              na.rm = TRUE),
+    mean_path_length_m              = mean(path_length_m,             na.rm = TRUE),
+    max_path_length_m               = max(path_length_m,              na.rm = TRUE),
+    total_path_length_m             = sum(path_length_m,              na.rm = TRUE),
+    mean_max_distance_from_colony_m = mean(max_distance_from_colony_m, na.rm = TRUE),
+    max_distance_from_colony_m      = max(max_distance_from_colony_m,  na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+A readable summary of the key metrics (converted to km for display):
+
+```{r show-individual}
+individual_metrics |>
+  transmute(
+    track_id,
+    n_trips,
+    mean_trip_dist_km    = round(mean_trip_distance_m / 1000, 1),
+    max_trip_dist_km     = round(max_trip_distance_m  / 1000, 1),
+    mean_trip_dur_hr     = round(mean_trip_duration, 1),
+    max_trip_dur_hr      = round(max_trip_duration, 1),
+    mean_max_colony_km   = round(mean_max_distance_from_colony_m / 1000, 1)
+  )
+```
+
+### What the columns mean
+
+| Column | Description |
+|---|---|
+| `n_trips` | Number of complete foraging trips recorded |
+| `mean_trip_distance_m` | Mean straight-line distance per trip |
+| `max_trip_distance_m` | Longest single trip |
+| `total_trip_distance_m` | Cumulative distance across all trips |
+| `mean_trip_duration` | Mean trip length (units set by `duration_units`) |
+| `max_trip_duration` | Longest single trip |
+| `total_trip_duration` | Total time away from colony |
+| `mean_path_length_m` | Mean cumulative track length per trip |
+| `mean_max_distance_from_colony_m` | How far out the bird typically goes |
+| `max_distance_from_colony_m` | Furthest point ever reached |
+
+### Interpreting individual variation
+
+```{r individual-range}
+individual_metrics |>
+  summarise(
+    dist_range_km  = paste0(
+      round(min(mean_trip_distance_m) / 1000, 0), " – ",
+      round(max(mean_trip_distance_m) / 1000, 0), " km"),
+    dur_range_hr   = paste0(
+      round(min(mean_trip_duration), 1), " – ",
+      round(max(mean_trip_duration), 1), " hr"),
+    radius_range_km = paste0(
+      round(min(mean_max_distance_from_colony_m) / 1000, 0), " – ",
+      round(max(mean_max_distance_from_colony_m) / 1000, 0), " km")
+  )
+```
+
+Even in this five-bird sample, mean trip distance spans a nearly two-fold range.
+Birds making longer, farther trips may be accessing distant prey patches or may
+have fewer constraints on time away from the nest (e.g. failed breeders). Always
+check breeding-status metadata before drawing ecological conclusions from
+individual variation.
+
+---
+
+## 4  Population-level summaries — `summarize_population_metrics()`
+
+`summarize_population_metrics()` takes `individual_metrics` and produces a
+**single-row colony snapshot**. It auto-detects every numeric column and
+computes mean, SD, min, and max for each, appending the statistic as a suffix.
+
+```{r population-summary, eval=FALSE}
+population_metrics <- summarize_population_metrics(
+  individual_metrics = individual_metrics,
+  bird_id_col        = "track_id"
+)
+```
+
+```{r population-summary-mock, echo=FALSE}
+numeric_cols <- names(individual_metrics)[sapply(individual_metrics, is.numeric)]
+
+population_metrics <- bind_cols(
+  summarise(individual_metrics, n_individuals = n_distinct(track_id)),
+  summarise(individual_metrics,
+    across(
+      all_of(numeric_cols),
+      list(
+        mean = ~ mean(.x, na.rm = TRUE),
+        sd   = ~ sd(.x,   na.rm = TRUE),
+        min  = ~ min(.x,  na.rm = TRUE),
+        max  = ~ max(.x,  na.rm = TRUE)
+      ),
+      .names = "{.col}_{.fn}"
+    )
+  )
+)
+```
+
+The raw output is wide (mean/SD/min/max for every individual-level column).
+Select the columns most relevant to your reporting context:
+
+```{r show-population}
+population_metrics |>
+  select(
+    n_individuals,
+    starts_with("n_trips"),
+    starts_with("mean_trip_distance_m"),
+    starts_with("mean_trip_duration"),
+    starts_with("mean_max_distance_from_colony_m")
+  ) |>
+  mutate(across(contains("_m_"), ~ round(.x / 1000, 1))) |>  # convert m → km
+  glimpse()
+```
+
+### Reporting-ready text
+
+```{r population-prose}
+cat(sprintf(
+  paste0(
+    "Across %d individuals (%d total trips), Wedge-tailed Shearwaters at\n",
+    "Kaena Point made foraging trips lasting %.1f \u00b1 %.1f hr (mean \u00b1 SD)\n",
+    "and covering %.0f \u00b1 %.0f km. On average, birds reached a maximum\n",
+    "of %.0f \u00b1 %.0f km from the colony."
+  ),
+  population_metrics$n_individuals,
+  population_metrics$n_trips_mean * population_metrics$n_individuals,
+  population_metrics$mean_trip_duration_mean,
+  population_metrics$mean_trip_duration_sd,
+  population_metrics$mean_trip_distance_m_mean / 1000,
+  population_metrics$mean_trip_distance_m_sd   / 1000,
+  population_metrics$mean_max_distance_from_colony_m_mean / 1000,
+  population_metrics$mean_max_distance_from_colony_m_sd   / 1000
+))
+```
+
+> **Sample size note.** Population-level means are only as reliable as the
+> individuals behind them. Aim for ≥ 10 tracked birds before presenting
+> colony-level conclusions, and inspect `individual_metrics` for outliers first.
+
+---
+
+## 5  Estimating foraging range — `calc_foraging_range()`
+
+`calc_foraging_range()` computes the spatial extent of each bird's foraging
+activity, returning an `sf` polygon object. Two methods are available:
+
+- `"convex_hull"` — minimum polygon enclosing all foraging points (default).
+- `"bbox"` — axis-aligned bounding box; faster but always rectangular.
+
+If `phase_col` is supplied, only points labelled with `foraging_value` are
+included. Without a phase column, all track points are used.
+
+```{r calc-foraging-range, eval=FALSE}
+# Requires classify_trip_phase() to have been run first (adds the phase column)
+foraging_ranges <- calc_foraging_range(
+  track_data     = processed_track,
+  bird_id_col    = "track_id",
+  lon_col        = "longitude",
+  lat_col        = "latitude",
+  phase_col      = "phase",          # omit to use all fixes
+  foraging_value = "foraging",
+  method         = "convex_hull",
+  crs            = 4326,
+  area_crs       = 3857              # projected CRS used for area calculation
+)
+```
+
+```{r mock-foraging-ranges, echo=FALSE}
+# Representative convex-hull areas for WTSH foraging around Oahu (km²)
+foraging_ranges <- tibble::tibble(
+  track_id           = c("WTSH_001","WTSH_002","WTSH_003","WTSH_004","WTSH_005"),
+  n_points           = c(1472L, 1504L, 361L, 1603L, 372L),
+  foraging_range_km2 = c(4821.3, 2914.7, 1823.5, 4412.8, 2156.2)
+)
+```
+
+```{r show-foraging-ranges}
+foraging_ranges |>
+  arrange(desc(foraging_range_km2)) |>
+  mutate(foraging_range_km2 = round(foraging_range_km2, 0))
+```
+
+### Joining foraging range to the individual summary
+
+Because `calc_foraging_range()` returns one row per `track_id`, it joins
+cleanly onto `individual_metrics`:
+
+```{r join-ranges}
+individual_metrics |>
+  left_join(
+    foraging_ranges |> select(track_id, foraging_range_km2),
+    by = "track_id"
+  ) |>
+  transmute(
+    track_id,
+    n_trips,
+    mean_max_colony_km = round(mean_max_distance_from_colony_m / 1000, 1),
+    foraging_range_km2 = round(foraging_range_km2, 0)
+  ) |>
+  arrange(desc(foraging_range_km2))
+```
+
+Birds with larger foraging ranges tend to have higher maximum colony distances,
+but the convex hull also expands when a bird visits many spatially separated
+areas within the same overall radius — making range area a complementary metric
+to maximum distance rather than a substitute for it.
+
+---
+
+## 6  Visualising tracks — `plot_tracks()`
+
+A track map is the quickest sanity check after running the pipeline and a
+practical communication tool for non-technical audiences.
+
+> **Column name note.** `plot_tracks()` expects columns named `lon` and `lat`.
+> Rename them from the package standard (`longitude` / `latitude`) before
+> plotting.
+
+```{r plot-tracks, fig.width=6.5, fig.height=5.5,
+    fig.alt="Map of WTSH GPS tracks coloured by individual, with colony marked."}
+tracks |>
+  rename(lon = longitude, lat = latitude) |>
+  plot_tracks(
+    color_by      = "track_id",
+    colony_coords = colony,
+    title         = "Wedge-tailed Shearwater foraging tracks\nKaena Point, Oahu — August 2013"
+  )
+```
+
+For a closer look at a specific trip, use `plot_trip_map()` (see the
+trip-segmentation vignette):
+
+```{r plot-trip, eval=FALSE}
+cleaned |>
+  rename(lon = longitude, lat = latitude) |>
+  plot_trip_map(
+    trip_ids      = 1L,
+    colony_coords = colony,
+    title         = "WTSH_001 — Trip 1"
+  )
+```
+
+---
+
+## 7  Exporting results
+
+### 7.1  Summary tables — `export_policy_summary_tables()`
+
+`export_policy_summary_tables()` writes summary data frames to CSV for reports,
+databases, or collaborators who do not use R.
+
+```{r export-tables, eval=FALSE}
+# Individual-level summary (one row per bird)
+export_policy_summary_tables(
+  data      = individual_metrics,
+  file_path = "outputs/wtsh_individual_metrics.csv"
+)
+
+# Population-level snapshot (one row)
+export_policy_summary_tables(
+  data      = population_metrics,
+  file_path = "outputs/wtsh_population_metrics.csv"
+)
+```
+
+Both files are plain CSV and can be opened in Excel or imported into any
+statistical software. The population summary is compact enough to include
+directly in a species assessment; the individual summary supports the
+underlying statistical analyses.
+
+### 7.2  Spatial layers — `export_gis_layers()`
+
+`export_gis_layers()` writes `sf` objects to GIS-ready formats (GeoPackage by
+default). Use this to share foraging-range polygons with GIS analysts or to
+load them into QGIS or ArcGIS for overlay with management boundaries.
+
+```{r export-gis, eval=FALSE}
+# Export foraging-range convex hulls
+export_gis_layers(
+  spatial_object = foraging_ranges,
+  file_path      = "outputs/wtsh_foraging_ranges.gpkg"
+)
+
+# Export cleaned track points
+export_gis_layers(
+  spatial_object = sf::st_as_sf(
+    cleaned,
+    coords = c("longitude", "latitude"),
+    crs    = 4326
+  ),
+  file_path = "outputs/wtsh_tracks.gpkg"
+)
+```
+
+> **CRS check.** `export_gis_layers()` calls `assert_crs()` internally. If your
+> `sf` object has no CRS assigned, set one before exporting:
+> `sf::st_crs(foraging_ranges) <- 4326`
+
+---
+
+## Summary of functions used
+
+| Function | Input | Output |
+|---|---|---|
+| `summarize_individual_metrics()` | One-row-per-trip metrics table | One-row-per-bird: mean, max, total of each metric |
+| `summarize_population_metrics()` | Individual metrics table | Single row: mean/SD/min/max of all individual metrics |
+| `calc_foraging_range()` | Track points (+ optional phase column) | `sf` polygon per bird with `foraging_range_km2` |
+| `plot_tracks()` | Track data with `lon`/`lat` columns | `ggplot2` map |
+| `export_policy_summary_tables()` | Any summary data frame | CSV file on disk |
+| `export_gis_layers()` | `sf` object | GeoPackage / shapefile on disk |
+
+## Next steps
+
+- **Kernel utilization distributions**: use `estimate_kernel_ud()`,
+  `get_core_area()`, and `get_home_range()` for a probabilistic alternative to
+  the convex-hull foraging range (Vignette 5).
+- **Fisheries overlap**: pass `foraging_ranges` and track data into
+  `analyze_fisheries_overlap()` to quantify bycatch exposure by gear type
+  (Vignette 6).
+- **Jurisdiction overlay**: run `analyze_jurisdiction_overlap()` to determine
+  how much foraging time falls inside EEZs versus the high seas (Vignette 7).
