@@ -1,0 +1,42 @@
+---
+title: "Trip Segmentation and Movement Behavior"
+author: "Jaylen"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Trip Segmentation and Movement Behavior}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+library(Shearwater)
+library(dplyr)
+
+# Load data relative to project root
+prep_data <- read.csv("inst/extdata/example_wtsh_data.csv")
+
+# 1: Segmented trips
+segmented_data <- prep_data %>%
+  group_by(animal_id) %>%
+  segment_trips(max_time_gap = 120, min_dist_gap = 500) %>%
+  ungroup()
+
+head(segmented_data)
+
+# 2: 
+classified_data <- segmented_data %>%
+  classify_trip_phase()
+  
+# 3:
+final_processed_data <- classified_data %>%
+  label_day_night_period()
+  
+# 4:
+vignette_summary <- final_processed_data %>%
+  group_by(animal_id, trip_id) %>%
+  summarize(
+    total_distance_km = sum(distance_meters, na.rm = TRUE) / 1000,
+    duration_hours = as.numeric(difftime(max(timestamp), min(timestamp), units = "hours")),
+    pct_foraging = mean(behavior_phase == "foraging", na.rm = TRUE) * 100,
+    .groups = "drop"
+  )
+
+head(vignette_summary)

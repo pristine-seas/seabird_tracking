@@ -36,6 +36,12 @@ join_tracks_to_fishing_grid <- function(track_data,
   out
 }
 
+#' Calculate fisheries overlap
+#'
+#' Summarizes fisheries overlap metrics from joined seabird tracking and
+#' fisheries effort data. The function groups records by track ID and gear type,
+#' and optionally by spatial cell ID.
+#'
 #' @param joined_data An sf object or data frame produced by
 #'   join_tracks_to_fishing_grid().
 #' @param track_id_col Character string. Name of the bird or track ID column.
@@ -43,7 +49,9 @@ join_tracks_to_fishing_grid <- function(track_data,
 #' @param gear_col Character string. Name of the gear column.
 #' @param cell_id_col Optional character string. Name of the spatial cell ID column.
 #'
-#' @return A data frame of overlap metrics.
+#' @return A data frame of overlap metrics, including the number of overlap
+#'   records, total overlap, mean overlap, and maximum overlap.
+#'
 #' @export
 calc_fisheries_overlap <- function(joined_data,
                                    track_id_col = "track_id",
@@ -190,6 +198,22 @@ calc_risk_index <- function(overlap_data,
   out
 }
 
+#' Calculate diel fisheries overlap
+#'
+#' Calculates fisheries overlap only when the seabird track diel period matches
+#' the fisheries diel period.
+#'
+#' @param joined_data A data frame or sf object containing joined track and
+#'   fisheries data.
+#' @param track_id_col Character string. Name of the track ID column.
+#' @param track_diel_col Character string. Name of the track diel-period column.
+#' @param fisheries_diel_col Character string. Name of the fisheries diel-period column.
+#' @param effort_col Character string. Name of the effort column.
+#'
+#' @return A data frame with one row per track and diel period, including
+#'   overlap summary metrics.
+#'
+#' @export
 calc_diel_overlap <- function(joined_data,
                               track_id_col = "track_id",
                               track_diel_col = "diel_period.x",
