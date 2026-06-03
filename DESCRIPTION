@@ -11,12 +11,18 @@ Encoding: UTF-8
 LazyData: true
 URL: https://github.com/cooper61204/Shearwater
 BugReports: https://github.com/cooper61204/Shearwater/issues
+Imports:
+    dplyr,
+    lubridate,
+    tidyr,
+    sf,
+    rnaturalearth
 Suggests: 
     knitr,
     rmarkdown,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
-RoxygenNote: 7.3.3
 VignetteBuilder: knitr
 Depends: 
     R (>= 3.5)
+Config/roxygen2/version: 8.0.0
