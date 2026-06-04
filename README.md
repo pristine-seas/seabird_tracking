@@ -7,6 +7,7 @@ editor_options: markdown: wrap: 72 ---
 <!-- badges: start -->
 
 [![R-CMD-check](https://github.com/cooper61204/Shearwater/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/cooper61204/Shearwater/actions/workflows/R-CMD-check.yaml)
+
 <!-- badges: end -->
 
 Shearwater is an R package for analyzing Wedge-tailed Shearwater GPS tracking data. The package helps researchers move from raw GPS fixes to cleaned tracks, trip segmentation, movement metrics, space-use estimates, and fisheries overlap summaries.
