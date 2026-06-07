@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_maps.R
 \name{plot_fisheries_heatmap}
 \alias{plot_fisheries_heatmap}
-\title{Plot a fisheries overlap or risk heatmap}
+\title{Plot a Fisheries Overlap or Risk Heatmap}
 \usage{
 plot_fisheries_heatmap(
   grid_data,
@@ -14,24 +14,26 @@ plot_fisheries_heatmap(
 )
 }
 \arguments{
-\item{grid_data}{An sf object containing grid or polygon geometry and a value
-column to plot.}
+\item{grid_data}{An `sf` object containing grid or polygon geometry and a
+value column to plot.}
 
 \item{fill_col}{Character string. Name of the overlap or risk column to use
-for fill color. Default: `"total_overlap"`.}
+for fill color. Default is `"total_overlap"`.}
 
-\item{border_color}{Character string. Polygon border color. Default: `"grey40"`.}
+\item{border_color}{Character string. Polygon border color. Default is
+`"grey40"`.}
 
-\item{na_color}{Character string. Fill color for missing values. Default: `"white"`.}
+\item{na_color}{Character string. Fill color for missing values. Default is
+`"white"`.}
 
 \item{title}{Optional character string for the plot title.}
 
 \item{legend_title}{Optional character string for the legend title.}
 }
 \value{
-A ggplot object.
+A `ggplot2` plot object.
 }
 \description{
-Maps the spatial pattern of fisheries overlap or risk intensity using an sf
-grid or polygon layer.
+Maps the spatial pattern of fisheries overlap or risk intensity using an
+`sf` grid or polygon layer.
 }

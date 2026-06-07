@@ -2,7 +2,7 @@
 % Please edit documentation in R/trip_utils.R
 \name{make_datetime}
 \alias{make_datetime}
-\title{Combine Date and Time Columns into a Unified Datetime Object}
+\title{Combine Date and Time Columns into a Datetime Object}
 \usage{
 make_datetime(
   track,
@@ -13,19 +13,22 @@ make_datetime(
 )
 }
 \arguments{
-\item{track}{A data frame or tibble containing spatial bird telemetry records.}
+\item{track}{A data frame or tibble containing tracking records.}
 
-\item{date_col}{Character string. Name of the column containing dates. Default: `"date_gmt"`.}
+\item{date_col}{Character. Name of the column containing dates.
+Default is `"date_gmt"`.}
 
-\item{time_col}{Character string. Name of the column containing times. Default: `"time_gmt"`.}
+\item{time_col}{Character. Name of the column containing times.
+Default is `"time_gmt"`.}
 
-\item{tz}{Character string. Timezone specification. Default: `"UTC"`.}
+\item{tz}{Character. Time zone. Default is `"UTC"`.}
 
-\item{output_col}{Character string. Name of the new generated datetime column. Default: `"datetime_gmt"`.}
+\item{output_col}{Character. Name of the new datetime column.
+Default is `"datetime_gmt"`.}
 }
 \value{
-A mutated data frame containing the converted POSIXct datetime tracking column.
+A data frame with a new POSIXct datetime column.
 }
 \description{
-Combine Date and Time Columns into a Unified Datetime Object
+Combines separate date and time columns into a single POSIXct datetime column.
 }

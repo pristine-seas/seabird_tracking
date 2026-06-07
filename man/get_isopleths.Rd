@@ -7,16 +7,14 @@
 get_isopleths(kud, levels = c(50, 95))
 }
 \arguments{
-\item{kud}{An `EstUDm` object produced by `calculate_kud()`.}
+\item{kud}{An `EstUDm` object produced by `estimate_kernel_ud()`.}
 
-\item{levels}{Numeric vector. Utilization distribution thresholds to extract,
-such as `c(50, 95)`.}
+\item{levels}{Numeric vector of utilization distribution percentages, such as
+`c(50, 95)`.}
 }
 \value{
-An `sf` data frame containing isopleth polygon geometries and a
-  `level_pct` column identifying the utilization threshold.
+An `sf` polygon object with a `level_pct` column.
 }
 \description{
-Extracts home range or core-use polygons from calculated kernel utilization
-distributions at user-defined utilization percentage thresholds.
+Extracts utilization distribution polygons at one or more percentage levels.
 }

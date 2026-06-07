@@ -2,19 +2,27 @@
 % Please edit documentation in R/plot_maps.R
 \name{plot_tracks}
 \alias{plot_tracks}
-\title{Plot raw or cleaned bird tracks on a map}
+\title{Plot Bird Tracks on a Map}
 \usage{
 plot_tracks(
   track_data,
-  color_by = "bird_id",
+  lon_col = "longitude",
+  lat_col = "latitude",
+  color_by = "track_id",
   colony_coords = NULL,
   title = "Bird Tracks"
 )
 }
 \arguments{
-\item{track_data}{A data frame or tibble containing longitude (`lon`) and latitude (`lat`) columns.}
+\item{track_data}{A data frame or tibble containing longitude and latitude
+columns.}
 
-\item{color_by}{Character. Column used to color tracks. Default is `"bird_id"`.}
+\item{lon_col}{Character. Longitude column. Default is `"longitude"`.}
+
+\item{lat_col}{Character. Latitude column. Default is `"latitude"`.}
+
+\item{color_by}{Character. Column used to color tracks. Default is
+`"track_id"`.}
 
 \item{colony_coords}{Optional named numeric vector with `lon` and `lat`.}
 
@@ -24,6 +32,5 @@ plot_tracks(
 A `ggplot2` plot object.
 }
 \description{
-Creates a map of GPS tracks for one or more individuals. Useful for quick
-visual QA immediately after import or cleaning.
+Creates a map of GPS tracks for one or more individuals.
 }

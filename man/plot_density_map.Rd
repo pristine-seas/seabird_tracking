@@ -2,21 +2,30 @@
 % Please edit documentation in R/plot_maps.R
 \name{plot_density_map}
 \alias{plot_density_map}
-\title{Plot spatial density of seabird use}
+\title{Plot Spatial Density of Seabird Use}
 \usage{
-plot_density_map(track_data, bins = 100, title = "Seabird Use Density")
+plot_density_map(
+  track_data,
+  lon_col = "longitude",
+  lat_col = "latitude",
+  bins = 100,
+  title = "Seabird Use Density"
+)
 }
 \arguments{
-\item{track_data}{A standardized or cleaned track tibble.}
+\item{track_data}{A standardized or cleaned track data frame.}
 
-\item{bins}{Integer. Number of 2-D histogram bins per axis. Default: 100.}
+\item{lon_col}{Character. Longitude column. Default is `"longitude"`.}
+
+\item{lat_col}{Character. Latitude column. Default is `"latitude"`.}
+
+\item{bins}{Integer. Number of 2D histogram bins per axis. Default is `100`.}
 
 \item{title}{Character. Plot title.}
 }
 \value{
-A \code{ggplot2} plot object.
+A `ggplot2` plot object.
 }
 \description{
-Creates a 2-D density (heatmap-style) plot showing where birds spend the
-most time across the study area.
+Plot Spatial Density of Seabird Use
 }

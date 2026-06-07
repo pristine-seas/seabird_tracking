@@ -7,19 +7,13 @@
 calculate_kud(tracks, ref = "href")
 }
 \arguments{
-\item{tracks}{An `sf` spatial object containing GPS point locations. Must
-include a `trip_id` column and valid point geometry.}
+\item{tracks}{An `sf` point object containing GPS locations.}
 
-\item{ref}{Character or numeric. The smoothing bandwidth parameter selection
-method. Common options are `"href"` for ad-hoc bandwidth selection or
-`"LSCV"` for least-squares cross-validation. Default is `"href"`.}
+\item{ref}{Bandwidth selection method or value.}
 }
 \value{
-An `EstUDm` object containing calculated utilization distributions
-  for each unique `trip_id`.
+An `EstUDm` object.
 }
 \description{
-Converts spatial tracking features into a legacy `SpatialPointsDataFrame`
-object and estimates fixed kernel utilization distributions grouped by
-`trip_id` using `adehabitatHR`.
+Backward-compatible wrapper for `estimate_kernel_ud()`.
 }

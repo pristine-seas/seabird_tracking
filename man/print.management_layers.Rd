@@ -7,10 +7,13 @@
 \method{print}{management_layers}(x, ...)
 }
 \arguments{
-\item{x}{A management_layers object.}
+\item{x}{A `management_layers` object.}
 
-\item{...}{Additional arguments (unused).}
+\item{...}{Additional arguments. Currently unused.}
+}
+\value{
+Invisibly returns `x`.
 }
 \description{
-Print Management Layers Object
+Prints a compact summary of a `management_layers` object.
 }

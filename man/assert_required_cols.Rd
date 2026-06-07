@@ -21,5 +21,5 @@ processing begins. Raises an informative error if any are missing.
 \examples{
 df <- data.frame(x = 1, y = 2)
 assert_required_cols(df, c("x", "y"))        # passes
-assert_required_cols(df, c("x", "z"))        # errors
+try(assert_required_cols(df, c("x", "z")))   # expected to error
 }

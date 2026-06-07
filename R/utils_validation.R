@@ -18,7 +18,7 @@
 #' @examples
 #' df <- data.frame(x = 1, y = 2)
 #' assert_required_cols(df, c("x", "y"))        # passes
-#' assert_required_cols(df, c("x", "z"))        # errors
+#' try(assert_required_cols(df, c("x", "z")))   # expected to error
 assert_required_cols <- function(data, cols) {
   if (!is.data.frame(data)) {
     stop("`data` must be a data frame or tibble.", call. = FALSE)
@@ -60,10 +60,15 @@ assert_required_cols <- function(data, cols) {
 #'
 #' @examples
 #' library(sf)
+#'
 #' pt <- st_sf(geometry = st_sfc(st_point(c(0, 0)), crs = 4326))
-#' assert_crs(pt)               # passes – CRS is set
-#' assert_crs(pt, 4326)         # passes – CRS matches
-#' assert_crs(pt, 32632)        # errors – CRS mismatch
+#'
+#' assert_crs(pt)       # passes: CRS is set
+#' assert_crs(pt, 4326) # passes: CRS matches
+#'
+#' \dontrun{
+#' assert_crs(pt, 32632) # errors: CRS mismatch
+#' }
 assert_crs <- function(x, expected_crs = NULL) {
   if (!requireNamespace("sf", quietly = TRUE)) {
     stop("Package 'sf' is required for assert_crs().", call. = FALSE)
@@ -124,7 +129,7 @@ assert_crs <- function(x, expected_crs = NULL) {
 #' assert_datetime_tz(df, "ts")    # passes
 #'
 #' df_naive <- data.frame(ts = as.POSIXct("2024-01-01 12:00:00"))
-#' assert_datetime_tz(df_naive, "ts")  # errors – no explicit tz
+#' try(assert_datetime_tz(df_naive, "ts"))  # expected to error
 assert_datetime_tz <- function(data, timestamp_col) {
   if (!is.data.frame(data)) {
     stop("`data` must be a data frame or tibble.", call. = FALSE)

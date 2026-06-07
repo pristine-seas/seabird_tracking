@@ -34,13 +34,7 @@ regularize_tracks(
 which an observed fix is considered a match. Defaults to half the interval.}
 }
 \value{
-A data.frame with one row per bird per regular time step, containing:
-  \itemize{
-    \item The id column
-    \item \code{datetime_regular} – the regular grid timestamp (POSIXct UTC)
-    \item Latitude and longitude (NA where no fix matched the grid point)
-    \item \code{is_observed} – TRUE if a real fix was matched, FALSE if grid point is empty
-  }
+A data.frame with one row per bird per regular time step.
 }
 \description{
 Resamples each individual's track to a uniform time step for comparability

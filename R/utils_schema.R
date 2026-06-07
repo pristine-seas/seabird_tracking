@@ -1,286 +1,517 @@
 # =============================================================================
 # utils_schema.R
-# Schema validation and coercion for track data
+# GPS schema standardization and validation utilities
 # =============================================================================
 
-
-#' Validate GPS Track Data
+#' Validate GPS Tracking Data
 #'
-#' Performs comprehensive validation on raw or standardized track data,
-#' checking required columns, coordinate ranges, timestamp integrity,
-#' duplicates, and structural issues. Returns validated data or a
-#' structured list of errors and warnings.
+#' Checks that a GPS tracking table contains the required identity, datetime,
+#' longitude, and latitude fields and that those fields can be safely used by
+#' downstream package functions.
 #'
-#' @param data           A data frame or tibble (raw or standardized track data).
-#' @param strict         Logical. If TRUE, treat warnings as errors. Default FALSE.
-#' @param allow_na       Logical. If TRUE, allow NA values in coordinates/timestamps.
-#'                       Default FALSE.
+#' @param data A data frame, tibble, or sf object.
+#' @param strict Logical. If TRUE, validation problems error. If FALSE, problems
+#'   that can be tolerated are warnings.
+#' @param id_col Optional ID column name.
+#' @param datetime_col Optional datetime column name.
+#' @param lon_col Optional longitude column name.
+#' @param lat_col Optional latitude column name.
 #'
-#' @return A list with class "validated_gps_data" containing:
-#'   - \code{data}:     The validated data frame (if no critical errors).
-#'   - \code{valid}:    Logical indicating whether validation passed.
-#'   - \code{errors}:   Character vector of critical errors (if any).
-#'   - \code{warnings}: Character vector of warnings (if any).
+#' @return The input object marked with class `validated_gps_data`.
 #' @export
-#'
-#' @examples
-#' df <- data.frame(
-#'   track_id = c(1, 1, 2),
-#'   timestamp = as.POSIXct(c("2024-01-01 10:00:00", "2024-01-01 10:01:00",
-#'                            "2024-01-01 11:00:00"), tz = "UTC"),
-#'   latitude = c(37.7749, 37.7750, 37.7800),
-#'   longitude = c(-122.4194, -122.4195, -122.4100)
-#' )
-#' result <- validate_gps_data(df)
-#' print(result)
-validate_gps_data <- function(data, strict = FALSE, allow_na = FALSE) {
-  errors <- character(0)
-  warnings <- character(0)
-
-  # --- Check basic structure ---
+validate_gps_data <- function(data,
+                              strict = TRUE,
+                              id_col = NULL,
+                              datetime_col = NULL,
+                              lon_col = NULL,
+                              lat_col = NULL) {
   if (!is.data.frame(data)) {
-    errors <- c(errors, "`data` must be a data frame or tibble.")
-    return(structure(
-      list(data = NULL, valid = FALSE, errors = errors, warnings = warnings),
-      class = "validated_gps_data"
-    ))
+    stop("`data` must be a data frame, tibble, or sf object.", call. = FALSE)
   }
 
-  if (nrow(data) == 0) {
-    warnings <- c(warnings, "Data frame is empty.")
+  if (!is.logical(strict) || length(strict) != 1 || is.na(strict)) {
+    stop("`strict` must be TRUE or FALSE.", call. = FALSE)
   }
 
-  # --- Check required columns ---
-  required_cols <- c("track_id", "timestamp", "latitude", "longitude")
-  tryCatch(
-    assert_required_cols(data, required_cols),
-    error = function(e) {
-      errors <<- c(errors, conditionMessage(e))
+  detect_col <- function(candidates, label) {
+    hit <- candidates[candidates %in% names(data)]
+
+    if (length(hit) == 0) {
+      stop(
+        "Missing required ", label, " column. Expected one of: ",
+        paste(candidates, collapse = ", "),
+        call. = FALSE
+      )
     }
+
+    hit[[1]]
+  }
+
+  id_col <- id_col %||% detect_col(c("bird_id", "track_id", "id", "ID"), "ID")
+
+  datetime_col <- datetime_col %||% detect_col(
+    c("timestamp", "datetime_gmt", "datetime", "time", "DateTime"),
+    "datetime"
   )
 
-  if (length(errors) > 0) {
-    return(structure(
-      list(data = NULL, valid = FALSE, errors = errors, warnings = warnings),
-      class = "validated_gps_data"
-    ))
-  }
-
-  # --- Validate timestamp column ---
-  tryCatch(
-    assert_datetime_tz(data, "timestamp"),
-    error = function(e) {
-      errors <<- c(errors, conditionMessage(e))
-    }
+  lon_col <- lon_col %||% detect_col(
+    c("lon", "longitude", "Longitude", "x", "lng"),
+    "longitude"
   )
 
-  if (length(errors) > 0) {
-    return(structure(
-      list(data = NULL, valid = FALSE, errors = errors, warnings = warnings),
-      class = "validated_gps_data"
-    ))
-  }
+  lat_col <- lat_col %||% detect_col(
+    c("lat", "latitude", "Latitude", "y"),
+    "latitude"
+  )
 
-  # --- Check coordinate ranges ---
-  lat_vals <- data$latitude[!is.na(data$latitude)]
-  lon_vals <- data$longitude[!is.na(data$longitude)]
+  required_cols <- c(id_col, datetime_col, lon_col, lat_col)
+  missing_cols <- setdiff(required_cols, names(data))
 
-  if (length(lat_vals) > 0) {
-    if (any(lat_vals < -90 | lat_vals > 90, na.rm = TRUE)) {
-      errors <- c(errors, "Latitude values outside [-90, 90] range.")
-    }
-  }
-
-  if (length(lon_vals) > 0) {
-    if (any(lon_vals < -180 | lon_vals > 180, na.rm = TRUE)) {
-      errors <- c(errors, "Longitude values outside [-180, 180] range.")
-    }
-  }
-
-  # --- Check for NA values in required fields ---
-  na_counts <- colSums(is.na(data[, required_cols]))
-  if (!allow_na && any(na_counts > 0)) {
-    na_summary <- paste0(
-      names(na_counts[na_counts > 0]),
-      " (",
-      na_counts[na_counts > 0],
-      " NA)",
-      collapse = "; "
+  if (length(missing_cols) > 0) {
+    stop(
+      "Missing required column(s): ",
+      paste(missing_cols, collapse = ", "),
+      call. = FALSE
     )
-    errors <- c(errors, paste0("NA values found in required columns: ", na_summary))
-  } else if (any(na_counts > 0)) {
-    na_summary <- paste0(
-      names(na_counts[na_counts > 0]),
-      " (",
-      na_counts[na_counts > 0],
-      " NA)",
-      collapse = "; "
-    )
-    warnings <- c(warnings, paste0("NA values found: ", na_summary))
   }
 
-  # --- Check for duplicate rows ---
-  dup_indices <- duplicated(data[, required_cols])
-  if (any(dup_indices)) {
-    n_dups <- sum(dup_indices)
-    warnings <- c(warnings, paste0(n_dups, " duplicate row(s) detected."))
-  }
+  if (any(is.na(data[[id_col]]) | data[[id_col]] == "")) {
+    msg <- "ID column contains missing or blank values."
 
-  # --- Check timestamp ordering within tracks ---
-  for (tid in unique(data$track_id)) {
-    track_subset <- data[data$track_id == tid, ]
-    ts <- track_subset$timestamp
-    if (!all(is.na(ts)) && !all(diff(ts) >= 0, na.rm = TRUE)) {
-      warnings <- c(warnings, paste0("Track ", tid, ": timestamps not in ascending order."))
+    if (strict) {
+      stop(msg, call. = FALSE)
+    } else {
+      warning(msg, call. = FALSE)
     }
   }
 
-  # --- Check for extreme time gaps (e.g., > 24 hours) ---
-  for (tid in unique(data$track_id)) {
-    track_subset <- data[data$track_id == tid, ]
-    ts <- track_subset$timestamp
-    if (length(ts) > 1 && !all(is.na(ts))) {
-      diffs <- diff(ts)
-      max_gap <- max(diffs, na.rm = TRUE)
-      if (max_gap > 86400) {  # 24 hours in seconds
-        gap_hours <- as.numeric(max_gap) / 3600
-        warnings <- c(warnings, paste0(
-          "Track ", tid, ": large time gap detected (",
-          round(gap_hours, 1), " hours)."
-        ))
+  dt <- data[[datetime_col]]
+
+  if (!inherits(dt, "POSIXct") && !inherits(dt, "POSIXt")) {
+    parsed_dt <- .parse_timestamp(dt)
+
+    if (all(is.na(parsed_dt))) {
+      if (strict) {
+        stop("Datetime column could not be parsed as POSIXct.", call. = FALSE)
+      } else {
+        warning("Datetime column could not be parsed as POSIXct.", call. = FALSE)
+      }
+    }
+
+    if (any(is.na(parsed_dt)) && !all(is.na(parsed_dt))) {
+      msg <- "Datetime column contains unparseable values."
+
+      if (strict) {
+        stop(msg, call. = FALSE)
+      } else {
+        warning(msg, call. = FALSE)
+      }
+    }
+
+    dt_check <- parsed_dt
+  } else {
+    dt_check <- as.POSIXct(dt, tz = "UTC")
+
+    if (any(is.na(dt_check))) {
+      msg <- "Datetime column contains missing values."
+
+      if (strict) {
+        stop(msg, call. = FALSE)
+      } else {
+        warning(msg, call. = FALSE)
       }
     }
   }
 
-  # --- Check data types ---
-  if (!inherits(data$track_id, c("numeric", "integer", "character"))) {
-    warnings <- c(warnings, "track_id has unexpected type; consider integer or character.")
+  lon <- suppressWarnings(as.numeric(data[[lon_col]]))
+  lat <- suppressWarnings(as.numeric(data[[lat_col]]))
+
+  if (all(is.na(lon))) {
+    msg <- "Longitude column could not be converted to numeric values."
+
+    if (strict) {
+      stop(msg, call. = FALSE)
+    } else {
+      warning(msg, call. = FALSE)
+    }
   }
 
-  # --- Determine validity ---
-  valid <- length(errors) == 0
-  if (strict && length(warnings) > 0) {
-    errors <- c(errors, paste0("Strict mode: treating warnings as errors."))
-    valid <- FALSE
+  if (all(is.na(lat))) {
+    msg <- "Latitude column could not be converted to numeric values."
+
+    if (strict) {
+      stop(msg, call. = FALSE)
+    } else {
+      warning(msg, call. = FALSE)
+    }
   }
 
-  structure(
-    list(data = if (valid) data else NULL, valid = valid, errors = errors, warnings = warnings),
-    class = "validated_gps_data"
+  bad_coord <- is.na(lon) |
+    is.na(lat) |
+    lon < -180 |
+    lon > 180 |
+    lat < -90 |
+    lat > 90
+
+  if (any(bad_coord)) {
+    msg <- "Coordinates contain missing or out-of-range longitude/latitude values."
+
+    if (strict) {
+      stop(msg, call. = FALSE)
+    } else {
+      warning(msg, call. = FALSE)
+    }
+  }
+
+  order_problem <- FALSE
+
+  if (length(dt_check) > 1 && !all(is.na(dt_check))) {
+    split_idx <- split(seq_along(dt_check), data[[id_col]])
+
+    order_problem <- any(vapply(split_idx, function(idx) {
+      idx <- idx[!is.na(dt_check[idx])]
+
+      if (length(idx) <= 1) {
+        return(FALSE)
+      }
+
+      any(diff(as.numeric(dt_check[idx])) < 0)
+    }, logical(1)))
+  }
+
+  if (order_problem) {
+    msg <- "Timestamps are not in ascending order within track IDs."
+
+    if (strict) {
+      stop(
+        "Strict mode: treating warnings as errors. ",
+        msg,
+        call. = FALSE
+      )
+    } else {
+      warning(msg, call. = FALSE)
+    }
+  }
+
+  attr(data, "gps_schema") <- list(
+    id_col = id_col,
+    datetime_col = datetime_col,
+    lon_col = lon_col,
+    lat_col = lat_col,
+    strict = strict
   )
-}
 
-#' @export
-print.validated_gps_data <- function(x, ...) {
-  cat("=== GPS Data Validation Result ===\n")
-  cat("Valid:", x$valid, "\n")
-  if (x$valid && !is.null(x$data)) {
-    cat("Rows:", nrow(x$data), "\n")
-    cat("Tracks:", length(unique(x$data$track_id)), "\n")
+  if (!inherits(data, "validated_gps_data")) {
+    class(data) <- c("validated_gps_data", class(data))
   }
-  if (length(x$errors) > 0) {
-    cat("\nErrors:\n")
-    cat(paste0("  - ", x$errors, "\n"), sep = "")
-  }
-  if (length(x$warnings) > 0) {
-    cat("\nWarnings:\n")
-    cat(paste0("  - ", x$warnings, "\n"), sep = "")
-  }
-  invisible(x)
+
+  data
 }
 
 
-#' Coerce Data into Standard Track Table Format
+#' Coerce Tracking Data to a Standard Track Table
 #'
-#' Converts a data frame or tibble into the package's standard internal
-#' track-table format. Renames columns as needed, orders columns consistently,
-#' and optionally validates the result.
+#' @param data A data frame or tibble.
+#' @param col_map Optional list or named character vector mapping source names
+#'   to standard names.
+#' @param validate Logical. If TRUE, run `validate_gps_data()`.
+#' @param as_tibble Logical. If TRUE, return a tibble when tibble is installed.
 #'
-#' The standard format is:
-#'   \code{track_id, timestamp, latitude, longitude, [optional columns]}
-#'
-#' Column mapping is flexible: if the input has columns like \code{id}, \code{time},
-#' \code{lat}, \code{lon}, they will be renamed to the standard names.
-#'
-#' @param data        A data frame or tibble to coerce.
-#' @param col_map     Optional named list/vector mapping input column names to
-#'                    standard names. E.g. \code{list(time = "timestamp", lat = "latitude")}.
-#'                    Defaults to common abbreviations.
-#' @param validate    Logical. If TRUE, run \code{validate_gps_data()} on the
-#'                    result. Default TRUE.
-#' @param as_tibble   Logical. If TRUE, return as tibble; if FALSE, as data.frame.
-#'                    Default TRUE.
-#'
-#' @return A coerced data frame or tibble in standard track format (or
-#'         a \code{validated_gps_data} object if \code{validate = TRUE}).
+#' @return A standardized data frame or tibble.
 #' @export
-#'
-#' @examples
-#' df <- data.frame(
-#'   id = c(1, 1, 2),
-#'   time = as.POSIXct(c("2024-01-01 10:00:00", "2024-01-01 10:01:00",
-#'                       "2024-01-01 11:00:00"), tz = "UTC"),
-#'   lat = c(37.7749, 37.7750, 37.7800),
-#'   lon = c(-122.4194, -122.4195, -122.4100)
-#' )
-#' std <- coerce_track_tbl(df, validate = FALSE)
-#' head(std)
-coerce_track_tbl <- function(data, col_map = NULL, validate = TRUE, as_tibble = TRUE) {
+coerce_track_tbl <- function(data,
+                             col_map = NULL,
+                             validate = TRUE,
+                             as_tibble = TRUE) {
   if (!is.data.frame(data)) {
     stop("`data` must be a data frame or tibble.", call. = FALSE)
   }
 
-  # --- Define default column mappings ---
   default_map <- list(
     id = "track_id",
     tid = "track_id",
     track = "track_id",
+    bird_id = "track_id",
+    animal_id = "track_id",
+    tag_id = "track_id",
     time = "timestamp",
     ts = "timestamp",
     datetime = "timestamp",
+    datetime_gmt = "timestamp",
+    date_time = "timestamp",
     lat = "latitude",
+    Latitude = "latitude",
     y = "latitude",
     lon = "longitude",
     lng = "longitude",
+    Longitude = "longitude",
     x = "longitude"
   )
 
-  # --- Merge user-provided mappings with defaults ---
   if (!is.null(col_map)) {
-    if (!is.list(col_map)) {
+    if (is.character(col_map)) {
+      if (is.null(names(col_map)) || any(names(col_map) == "")) {
+        stop("`col_map` must be named when supplied as a character vector.", call. = FALSE)
+      }
+
       col_map <- as.list(col_map)
+    } else if (!is.list(col_map)) {
+      stop("`col_map` must be a named character vector or list.", call. = FALSE)
     }
+
+    if (is.null(names(col_map)) || any(names(col_map) == "")) {
+      stop("`col_map` must be named.", call. = FALSE)
+    }
+
     default_map <- c(default_map, col_map)
   }
 
-  # --- Rename columns ---
-  col_names <- names(data)
-  for (old_name in intersect(names(default_map), col_names)) {
+  for (old_name in intersect(names(default_map), names(data))) {
     new_name <- default_map[[old_name]]
+
+    if (!is.character(new_name) || length(new_name) != 1) {
+      stop("Each `col_map` value must be a single character string.", call. = FALSE)
+    }
+
     names(data)[names(data) == old_name] <- new_name
   }
 
-  # --- Reorder columns: standard cols first, then others ---
   standard_cols <- c("track_id", "timestamp", "latitude", "longitude")
   standard_present <- intersect(standard_cols, names(data))
   other_cols <- setdiff(names(data), standard_present)
+  data <- data[, c(standard_present, other_cols), drop = FALSE]
 
-  col_order <- c(standard_present, other_cols)
-  data <- data[, col_order, drop = FALSE]
+  if ("timestamp" %in% names(data) &&
+      !inherits(data$timestamp, "POSIXct")) {
+    data$timestamp <- .parse_timestamp(data$timestamp)
+  }
 
-  # --- Convert to tibble if requested ---
-  if (as_tibble) {
-    if (requireNamespace("tibble", quietly = TRUE)) {
-      data <- tibble::as_tibble(data)
-    } else {
-      warning("Package 'tibble' not available; returning as data.frame.")
+  for (coord_col in c("latitude", "longitude")) {
+    if (coord_col %in% names(data)) {
+      data[[coord_col]] <- suppressWarnings(as.numeric(data[[coord_col]]))
     }
   }
 
-  # --- Validate if requested ---
+  if (as_tibble && requireNamespace("tibble", quietly = TRUE)) {
+    data <- tibble::as_tibble(data)
+  }
+
   if (validate) {
-    return(validate_gps_data(data))
+    data <- validate_gps_data(data, strict = FALSE)
   }
 
   data
+}
+
+
+#' Standardize GPS Column Names
+#'
+#' @param raw_data A data frame or tibble.
+#' @param col_map Optional named character vector mapping standard names to
+#'   source column names.
+#' @param add_missing_cols Logical. If TRUE, missing mapped columns are added as
+#'   NA columns.
+#'
+#' @return A tibble with standardized GPS columns.
+#' @export
+standardize_gps_columns <- function(raw_data,
+                                    col_map = NULL,
+                                    add_missing_cols = TRUE) {
+  if (!is.data.frame(raw_data)) {
+    stop("raw_data must be a data frame or tibble.", call. = FALSE)
+  }
+
+  if (!is.logical(add_missing_cols) ||
+      length(add_missing_cols) != 1 ||
+      is.na(add_missing_cols)) {
+    stop("add_missing_cols must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  raw_data <- as.data.frame(raw_data, stringsAsFactors = FALSE)
+
+  if (is.null(col_map)) {
+    col_map <- .default_col_map(names(raw_data))
+  }
+
+  .validate_col_map(col_map)
+
+  added_missing <- character(0)
+
+  for (std_name in names(col_map)) {
+    src_name <- col_map[[std_name]]
+
+    if (std_name %in% names(raw_data)) {
+      next
+    }
+
+    if (src_name %in% names(raw_data)) {
+      names(raw_data)[names(raw_data) == src_name] <- std_name
+    } else if (add_missing_cols) {
+      raw_data[[std_name]] <- NA
+      added_missing <- c(
+        added_missing,
+        paste0("'", src_name, "' (mapped to '", std_name, "')")
+      )
+    } else {
+      stop(
+        "Source column '", src_name, "' (mapped to '", std_name,
+        "') not found in data.",
+        call. = FALSE
+      )
+    }
+  }
+
+  if (length(added_missing) > 0) {
+    warning(
+      "Source column(s) ",
+      paste(added_missing, collapse = ", "),
+      " not found in data. Adding as NA column.",
+      call. = FALSE
+    )
+  }
+
+  if ("timestamp" %in% names(raw_data) &&
+      !inherits(raw_data$timestamp, "POSIXct")) {
+    raw_data$timestamp <- .parse_timestamp(raw_data$timestamp)
+  }
+
+  for (coord_col in c("lon", "lat")) {
+    if (coord_col %in% names(raw_data)) {
+      raw_data[[coord_col]] <- suppressWarnings(as.numeric(raw_data[[coord_col]]))
+    }
+  }
+
+  schema_extras <- c("trip_id", "phase", "quality_flag")
+
+  for (col in schema_extras) {
+    if (!col %in% names(raw_data)) {
+      raw_data[[col]] <- NA_character_
+    }
+  }
+
+  # Only validate fully detected schemas. If missing columns were intentionally
+  # added as NA, returning the standardized table is useful and should not error.
+  if (length(added_missing) == 0 && exists("validate_gps_data", mode = "function")) {
+    validate_gps_data(raw_data, strict = FALSE)
+  }
+
+  if (requireNamespace("tibble", quietly = TRUE)) {
+    return(tibble::as_tibble(raw_data))
+  }
+
+  raw_data
+}
+
+
+.default_col_map <- function(src_names) {
+  aliases <- list(
+    bird_id = c(
+      "bird_id", "birdid", "id", "individual", "bird", "ring", "band_id",
+      "animal_id", "ind_id", "track_id", "birdcode", "bird_code", "tag",
+      "tag_id", "ID", "BirdCode"
+    ),
+    timestamp = c(
+      "timestamp", "datetime", "date_time", "date_time_utc", "utc",
+      "utc_datetime", "utcdatetime", "utc_datetime_gmt", "gmt", "obs_time",
+      "fix_time", "datetime_gmt", "datetime_utc", "time", "UTC_DateTime"
+    ),
+    lon = c(
+      "lon", "longitude", "long", "x", "lon_dd", "longitude_dd", "lng",
+      "Lon_DD", "Longitude"
+    ),
+    lat = c(
+      "lat", "latitude", "y", "lat_dd", "latitude_dd", "Lat_DD", "Latitude"
+    )
+  )
+
+  src_lower <- tolower(src_names)
+  col_map <- character(0)
+
+  for (std_name in names(aliases)) {
+    alias_lower <- tolower(aliases[[std_name]])
+    matched <- src_names[src_lower %in% alias_lower]
+
+    if (length(matched) > 0) {
+      col_map[[std_name]] <- matched[[1]]
+    } else {
+      col_map[[std_name]] <- std_name
+    }
+  }
+
+  col_map
+}
+
+
+.validate_col_map <- function(col_map) {
+  if (!is.character(col_map)) {
+    stop("col_map must be a named character vector.", call. = FALSE)
+  }
+
+  if (is.null(names(col_map)) || any(names(col_map) == "")) {
+    stop("col_map must be a named character vector.", call. = FALSE)
+  }
+
+  required <- c("bird_id", "timestamp", "lon", "lat")
+  missing <- setdiff(required, names(col_map))
+
+  if (length(missing) > 0) {
+    stop(
+      "col_map must include mappings for: ",
+      paste(required, collapse = ", "),
+      ". Missing: ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+.parse_timestamp <- function(x) {
+  if (inherits(x, "POSIXct")) {
+    return(x)
+  }
+
+  if (inherits(x, "POSIXt")) {
+    return(as.POSIXct(x, tz = "UTC"))
+  }
+
+  if (is.numeric(x)) {
+    return(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"))
+  }
+
+  x_chr <- as.character(x)
+
+  if (requireNamespace("lubridate", quietly = TRUE)) {
+    parsed <- suppressWarnings(lubridate::parse_date_time(
+      x_chr,
+      orders = c(
+        "ymd HMS", "ymd HM", "ymd",
+        "mdy HMS", "mdy HM", "mdy",
+        "dmy HMS", "dmy HM", "dmy",
+        "Ymd HMS", "Ymd HM", "Ymd"
+      ),
+      tz = "UTC"
+    ))
+
+    return(as.POSIXct(parsed, tz = "UTC"))
+  }
+
+  suppressWarnings(as.POSIXct(x_chr, tz = "UTC"))
+}
+
+
+`%||%` <- function(x, y) {
+  if (is.null(x)) y else x
+}
+
+
+#' @export
+as.data.frame.validated_gps_data <- function(x,
+                                             row.names = NULL,
+                                             optional = FALSE,
+                                             ...) {
+  class(x) <- setdiff(class(x), "validated_gps_data")
+  as.data.frame(x, row.names = row.names, optional = optional, ...)
 }

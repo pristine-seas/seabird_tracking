@@ -14,66 +14,21 @@ export_spatial_outputs(
 )
 }
 \arguments{
-\item{results}{A named list of spatial / tabular results, typically the
-combined output of \code{estimate_space_use()} and / or
-\code{analyze_jurisdiction_overlap()}. Recognized list elements:
-\describe{
-  \item{\code{tracks}}{An \code{sf} POINT or LINESTRING object of cleaned
-    GPS tracks.}
-  \item{\code{core_area}}{An \code{sf} POLYGON object (50 percent UD contour).}
-  \item{\code{home_range}}{An \code{sf} POLYGON object (95 percent UD contour).}
-  \item{\code{ud_polygons}}{Alternative to \code{core_area} /
-    \code{home_range}: a single \code{sf} collection of UD polygons
-    containing a \code{level} column.}
-  \item{\code{jurisdiction_summary}}{A data frame / tibble from
-    \code{calc_time_in_jurisdictions()}.}
-  \item{\code{policy_summary}}{A data frame / tibble from
-    \code{summarize_policy_exposure()}.}
-  \item{\code{overlap_grid}}{An \code{sf} grid or raster-backed object
-    from fisheries or MPA overlap analysis.}
-}
-Unrecognized names are silently ignored.}
+\item{results}{A named list of spatial/tabular results.}
 
-\item{out_dir}{Character. Path to the directory where files will be
-written. Created if it does not exist.}
+\item{out_dir}{Character. Output directory.}
 
-\item{gis_format}{Character. Output format for vector GIS files.
-Passed to \code{export_gis_layers()}. One of \code{"gpkg"} default,
-\code{"shp"}, or \code{"geojson"}.}
+\item{gis_format}{Character. One of `"gpkg"`, `"shp"`, or `"geojson"`.}
 
-\item{table_format}{Character. Output format for tabular files. Passed
-to \code{export_policy_summary_tables()}. One of \code{"csv"} default
-or \code{"xlsx"}.}
+\item{table_format}{Character. One of `"csv"` or `"xlsx"`.}
 
-\item{overwrite}{Logical. Overwrite existing files. Default \code{FALSE}.}
+\item{overwrite}{Logical. Whether to overwrite existing files.}
 
-\item{verbose}{Logical. Print progress messages. Default \code{TRUE}.}
+\item{verbose}{Logical. Whether to print progress messages.}
 }
 \value{
-Invisibly returns a named character vector of the file paths
-  written, or \code{character(0)} if nothing was exported. Each element
-  is named after the \code{results} key that produced it.
+Invisibly returns a named character vector of written file paths.
 }
 \description{
-Top-level wrapper that writes track lines, utilization-distribution
-polygons, and policy/jurisdiction summary tables produced by the package
-to an output directory. Internally delegates to \code{export_gis_layers()}
-and \code{export_policy_summary_tables()}.
-}
-\examples{
-\dontrun{
-space <- estimate_space_use(cleaned_tracks)
-juris <- analyze_jurisdiction_overlap(cleaned_tracks, mgmt_layers)
-
-results <- c(space, juris)
-written <- export_spatial_outputs(results, out_dir = "outputs/spatial")
-written
-}
-}
-\seealso{
-\code{\link{export_gis_layers}},
-  \code{\link{export_ud_polygons}},
-  \code{\link{export_policy_summary_tables}},
-  \code{\link{estimate_space_use}},
-  \code{\link{analyze_jurisdiction_overlap}}
+Writes recognized spatial and tabular outputs to an output directory.
 }

@@ -14,39 +14,22 @@ summarize_data_gaps(
 )
 }
 \arguments{
-\item{df}{A track data.frame after interpolation (output of \code{interpolate_tracks()})}
+\item{df}{A track data.frame after interpolation}
 
 \item{id_col}{Column name for bird ID}
 
 \item{datetime_col}{Column name for regular grid timestamps}
 
-\item{lat_col}{Column name for latitude (used to detect missing positions)}
+\item{lat_col}{Column name for latitude}
 
-\item{is_observed_col}{Column name for the observed fix flag from regularize_tracks()}
+\item{is_observed_col}{Column name for observed fix flag}
 
-\item{is_interpolated_col}{Column name for the interpolation flag from interpolate_tracks()}
+\item{is_interpolated_col}{Column name for interpolation flag}
 }
 \value{
-A data.frame with one row per bird containing:
-  \itemize{
-    \item \code{n_fixes_total} – total grid points for this individual
-    \item \code{n_observed} – fixes matched from raw data
-    \item \code{n_interpolated} – fixes filled by interpolation
-    \item \code{n_missing} – fixes still NA after interpolation
-    \item \code{pct_observed} – percentage of grid observed
-    \item \code{pct_interpolated} – percentage of grid interpolated
-    \item \code{pct_missing} – percentage of grid still missing
-    \item \code{n_gaps} – number of distinct NA runs in the raw data
-    \item \code{max_gap_minutes} – longest raw gap in minutes
-    \item \code{mean_gap_minutes} – mean raw gap length in minutes
-    \item \code{track_start} – first grid timestamp
-    \item \code{track_end} – last grid timestamp
-    \item \code{track_duration_hours} – total track duration in hours
-  }
+A data.frame with one row per bird.
 }
 \description{
 Produces a per-bird QA summary table describing missingness, gap structure,
-and how much of each track was gap-filled by interpolation. Intended for
-QA reporting after running \code{regularize_tracks()} and
-\code{interpolate_tracks()}.
+and how much of each track was gap-filled by interpolation.
 }

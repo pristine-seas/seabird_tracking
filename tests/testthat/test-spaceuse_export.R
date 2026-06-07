@@ -1,7 +1,7 @@
 #Testing_spaceuse_export
 library(class)
 library(sf)
-source("~/Desktop/Shearwater/R/spaceuse_export.R")
+
 
 # ------------------------------------------------------------------------------
 # MOCK DATA FIXTURE FOR EXPORT TESTING

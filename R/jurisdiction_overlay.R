@@ -43,6 +43,13 @@ read_management_layers <- function(eez_path,
       return(NULL)
     }
 
+    if (!is.character(path) ||
+        length(path) != 1 ||
+        is.na(path) ||
+        path == "") {
+      stop(label, " path must be a single non-empty character string.", call. = FALSE)
+    }
+
     if (!file.exists(path)) {
       stop(label, " file not found: ", path, call. = FALSE)
     }
@@ -52,7 +59,11 @@ read_management_layers <- function(eez_path,
     tryCatch(
       {
         if (ext %in% c("gpkg", "geopackage")) {
-          sf::st_read(path, layer = layer_nm, quiet = TRUE)
+          if (is.null(layer_nm)) {
+            sf::st_read(path, quiet = TRUE)
+          } else {
+            sf::st_read(path, layer = layer_nm, quiet = TRUE)
+          }
         } else if (ext %in% c("geojson", "shp", "gml", "kml")) {
           sf::st_read(path, quiet = TRUE)
         } else {
@@ -70,7 +81,6 @@ read_management_layers <- function(eez_path,
       }
     )
   }
-
   process_layer <- function(data, label = "Layer", path = NULL) {
     if (is.null(data)) {
       return(NULL)
@@ -374,7 +384,7 @@ overlay_mpas <- function(track_data, mpa_layer) {
 
     ud_area_m2 <- as.numeric(sf::st_area(sf::st_union(ud_ea)))
 
-    intersection <- sf::st_intersection(ud_ea, mpa_ea) |>
+    intersection <- suppressWarnings(sf::st_intersection(ud_ea, mpa_ea)) |>
       dplyr::mutate(
         overlap_km2 = as.numeric(sf::st_area(.data$geometry)) / 1e6,
         pct_ud_in_mpa = (.data$overlap_km2 * 1e6 / ud_area_m2) * 100
@@ -478,7 +488,7 @@ overlay_priority_areas <- function(track_data, priority_layer) {
 
     ud_area_m2 <- as.numeric(sf::st_area(sf::st_union(ud_ea)))
 
-    intersection <- sf::st_intersection(ud_ea, layer_ea) |>
+    intersection <- suppressWarnings(sf::st_intersection(ud_ea, layer_ea)) |>
       dplyr::mutate(
         overlap_km2 = as.numeric(sf::st_area(.data$geometry)) / 1e6,
         pct_ud_in_area = (.data$overlap_km2 * 1e6 / ud_area_m2) * 100

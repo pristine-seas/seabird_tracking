@@ -3,7 +3,7 @@ library(testthat)
 library(dplyr)
 library(sf)
 library(readr)
-source("~/Desktop/Shearwater/R/export_outputs.R")
+
 describe("summarize_policy_exposure()", {
   # Prepare dummy metrics to feed the summarization pipeline engine
   jur_summary <- tibble(

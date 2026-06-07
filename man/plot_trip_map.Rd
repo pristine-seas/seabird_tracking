@@ -2,31 +2,41 @@
 % Please edit documentation in R/plot_maps.R
 \name{plot_trip_map}
 \alias{plot_trip_map}
-\title{Map one or more trips with colony context}
+\title{Plot One or More Trips with Colony Context}
 \usage{
 plot_trip_map(
   trip_data,
   trip_ids = NULL,
   colony_coords = NULL,
+  lon_col = "longitude",
+  lat_col = "latitude",
+  trip_id_col = "trip_id",
   color_by = "trip_id",
   title = "Trip Map"
 )
 }
 \arguments{
-\item{trip_data}{A track tibble containing a \code{trip_id} column.}
+\item{trip_data}{A track data frame containing a trip ID column.}
 
-\item{trip_ids}{Character or integer vector of trip IDs to plot. If \code{NULL} (default), all trips are shown.}
+\item{trip_ids}{Character, integer, or numeric vector of trip IDs to plot.
+If `NULL`, all trips are shown.}
 
-\item{colony_coords}{Named numeric vector with \code{lon} and \code{lat}.}
+\item{colony_coords}{Optional named numeric vector with `lon` and `lat`.}
 
-\item{color_by}{Character. Column to color-code trips by. Default: \code{"trip_id"}.}
+\item{lon_col}{Character. Longitude column. Default is `"longitude"`.}
+
+\item{lat_col}{Character. Latitude column. Default is `"latitude"`.}
+
+\item{trip_id_col}{Character. Trip ID column. Default is `"trip_id"`.}
+
+\item{color_by}{Character. Column to color-code trips by. Default is
+`"trip_id"`.}
 
 \item{title}{Character. Plot title.}
 }
 \value{
-A \code{ggplot2} plot object.
+A `ggplot2` plot object.
 }
 \description{
-Plots a subset of trips from a trip-segmented track table. Highlights
-departure and return points and marks the colony.
+Plot One or More Trips with Colony Context
 }

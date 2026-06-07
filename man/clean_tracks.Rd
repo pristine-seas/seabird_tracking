@@ -8,6 +8,8 @@ clean_tracks(
   data,
   col_map = NULL,
   max_speed = 30,
+  speed_col = "Speed",
+  regularize = TRUE,
   interval_minutes = 60,
   max_gap_minutes = 180,
   land_polygon = NULL,
@@ -17,69 +19,36 @@ clean_tracks(
 )
 }
 \arguments{
-\item{data}{A data frame or tibble.  May be raw (pre-standardization) or
-already column-standardized.  Must contain at minimum \code{bird_id},
-\code{timestamp}, \code{lon}, and \code{lat} columns (or their raw
-equivalents when \code{col_map} is supplied).}
+\item{data}{A data frame or tibble containing GPS tracking data.}
 
-\item{col_map}{Named character vector mapping raw column names to package
-standard names, e.g. \code{c(bird_id = "tag_id", lon = "longitude")}.
-Pass \code{NULL} (default) when \code{data} is already standardized.}
+\item{col_map}{Optional named character vector/list used for column
+standardization.}
 
-\item{max_speed}{Numeric. Maximum plausible speed in m/s used by
-\code{filter_speed_outliers()}.  Default \code{30} m/s (~108 km/h),
-appropriate for most procellariids.}
+\item{max_speed}{Numeric. Maximum plausible speed.}
 
-\item{interval_minutes}{Numeric. Target resampling interval in minutes
-passed to \code{regularize_tracks()}.  Default \code{60}.}
+\item{speed_col}{Character. Name of speed column.}
 
-\item{max_gap_minutes}{Numeric. Maximum gap in minutes across which
-\code{interpolate_tracks()} will fill points.  Gaps wider than this are
-left as NA.  Default \code{180} (3 hours).}
+\item{regularize}{Logical. If TRUE, run `regularize_tracks()` and
+`interpolate_tracks()`.}
 
-\item{land_polygon}{An \code{sf} polygon object used to remove on-land
-points via \code{filter_on_land_or_invalid_points()}.  Pass \code{NULL}
-(default) to skip this step.}
+\item{interval_minutes}{Numeric. Regularization interval in minutes.}
 
-\item{flag_quality}{Logical.  When \code{TRUE} (default) low-quality fixes
-are flagged with \code{flag_low_quality_fixes()} before hard filters are
-applied.}
+\item{max_gap_minutes}{Numeric. Maximum gap to interpolate.}
 
-\item{drop_flagged}{Logical.  When \code{TRUE} rows whose
-\code{quality_flag} is not \code{"ok"} are dropped from the final output.
-Default \code{FALSE} (flags retained for downstream inspection).}
+\item{land_polygon}{Optional sf/sfc/Spatial object used to filter excluded
+spatial points.}
 
-\item{verbose}{Logical.  Print progress messages.  Default \code{TRUE}.}
+\item{flag_quality}{Logical. If TRUE, run `flag_low_quality_fixes()`.}
+
+\item{drop_flagged}{Logical. If TRUE, remove rows flagged as low quality.}
+
+\item{verbose}{Logical. If TRUE, print progress messages.}
 }
 \value{
-A tibble in the package standard track-table format with columns
-  \code{bird_id}, \code{timestamp}, \code{lon}, \code{lat},
-  \code{quality_flag}, and any additional columns carried through from
-  \code{data}.  An attribute \code{"cleaning_log"} records row counts at
-  each stage.
+A cleaned data frame with a `cleaning_log` attribute.
 }
 \description{
-Top-level wrapper that runs the full cleaning pipeline: import
-standardization, duplicate removal, speed filtering, optional land/invalid
-point removal, track regularization, and interpolation.  Each stage can be
-individually controlled through its arguments.
-}
-\examples{
-\dontrun{
-raw <- read_gps_data("wtsh_2023.csv")
-cleaned <- clean_tracks(raw, col_map = c(bird_id = "ring_number",
-                                          timestamp = "datetime_utc",
-                                          lon = "longitude",
-                                          lat = "latitude"))
-attr(cleaned, "cleaning_log")
-}
-}
-\seealso{
-\code{\link{standardize_gps_columns}},
-  \code{\link{remove_duplicate_fixes}},
-  \code{\link{filter_speed_outliers}},
-  \code{\link{filter_on_land_or_invalid_points}},
-  \code{\link{flag_low_quality_fixes}},
-  \code{\link{regularize_tracks}},
-  \code{\link{interpolate_tracks}}
+Top-level wrapper that runs the full cleaning pipeline: column
+standardization/coercion, quality flagging, duplicate removal, speed filtering,
+optional spatial filtering, optional regularization, and interpolation.
 }

@@ -2,7 +2,7 @@ library(testthat)
 library(dplyr)
 library(sf)
 library(readr)
-source("~/Desktop/Shearwater/R/utils_validation.R")
+
 describe("assert_required_cols()", {
   it("passes silently when all required columns are present", {
     df <- data.frame(track_id = 1, timestamp = 2)

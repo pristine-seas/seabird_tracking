@@ -16,26 +16,31 @@ identify_colony_visits(
 )
 }
 \arguments{
-\item{track}{A data frame or tibble containing standardized track coordinates.}
+\item{track}{A data frame or tibble containing track coordinates.}
 
-\item{lon_col}{Character string. Longitudinal track column name. Default: `"longitude"`.}
+\item{lon_col}{Character. Longitude column. Default is `"longitude"`.}
 
-\item{lat_col}{Character string. Latitudinal track column name. Default: `"latitude"`.}
+\item{lat_col}{Character. Latitude column. Default is `"latitude"`.}
 
-\item{colony_lon_col}{Character string. Column name containing colony longitude coordinates. Default: `"lon_colony"`.}
+\item{colony_lon_col}{Character. Colony longitude column.
+Default is `"lon_colony"`.}
 
-\item{colony_lat_col}{Character string. Column name containing colony latitude coordinates. Default: `"lat_colony"`.}
+\item{colony_lat_col}{Character. Colony latitude column.
+Default is `"lat_colony"`.}
 
-\item{radius_m}{Numeric. Spatial attendance threshold radius in meters. Default: `200`.}
+\item{radius_m}{Numeric. Colony attendance radius in meters.
+Default is `200`.}
 
-\item{distance_col}{Character string. Name of the calculated distance output column. Default: `"dist_to_colony_m"`.}
+\item{distance_col}{Character. Name of calculated distance column.
+Default is `"dist_to_colony_m"`.}
 
-\item{colony_flag_col}{Character string. Name of the logical output colony status flag column. Default: `"at_colony"`.}
+\item{colony_flag_col}{Character. Name of logical colony flag column.
+Default is `"at_colony"`.}
 }
 \value{
-A data frame containing calculated distance metrics and a logical attendance indicator column.
+A data frame with distance-to-colony and colony-attendance columns.
 }
 \description{
-Computes the great-circle distance from telemetry positions to designated colony breeding sites,
-flagging records falling within a defined spatial buffer radius.
+Computes the great-circle distance from telemetry positions to colony
+coordinates and flags points that fall within a defined colony radius.
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/trip_utils.R
 \name{summarize_trips}
 \alias{summarize_trips}
-\title{Generate Trip-Level Aggregate Analysis Profiles}
+\title{Summarize Trips}
 \usage{
 summarize_trips(
   track,
@@ -14,22 +14,26 @@ summarize_trips(
 )
 }
 \arguments{
-\item{track}{A structured tracking data frame containing segment and phase information.}
+\item{track}{A data frame or tibble containing trip-segmented tracking data.}
 
-\item{bird_id_col}{Character string. Unique individual identifier index column name. Default: `"track_id"`.}
+\item{bird_id_col}{Character. Individual or track ID column.
+Default is `"track_id"`.}
 
-\item{trip_id_col}{Character string. Trip assignment reference variable. Default: `"trip_id"`.}
+\item{trip_id_col}{Character. Trip ID column. Default is `"trip_id"`.}
 
-\item{datetime_col}{Character string. Coordinate processing chronological reference column name. Default: `"datetime_gmt"`.}
+\item{datetime_col}{Character. Datetime column.
+Default is `"datetime_gmt"`.}
 
-\item{distance_col}{Character string. Source spatial calculation track index. Default: `"dist_to_colony_m"`.}
+\item{distance_col}{Character. Distance-to-colony column.
+Default is `"dist_to_colony_m"`.}
 
-\item{phase_col}{Character string. Extracted behavioral label tracking target. Default: `"phase"`.}
+\item{phase_col}{Character. Behavioral phase column. Default is `"phase"`.}
 }
 \value{
-An aggregated summary table capturing individual flight tracking statistics.
+A data frame with one row per bird-trip.
 }
 \description{
-Collapses fine-scale tracking points into an itemized registry summarizing spatial footprints 
-and temporal trip characteristics.
+Collapses tracking points into trip-level summaries, including duration,
+number of fixes, maximum distance from colony, diel proportions, and
+behavioral phase proportions when those columns are available.
 }

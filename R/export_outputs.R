@@ -156,18 +156,18 @@ export_policy_summary_tables <- function(summary_data,
                                          file_path,
                                          overwrite = FALSE) {
   if (!is.character(file_path) || length(file_path) != 1 || is.na(file_path)) {
-    stop("`file_path` must be a single non-missing character string.", call. = FALSE)
+    stop("file_path must be a single non-missing character string.", call. = FALSE)
   }
 
-  if (!is.logical(overwrite) || length(overwrite) != 1) {
-    stop("`overwrite` must be TRUE or FALSE.", call. = FALSE)
+  if (!is.logical(overwrite) || length(overwrite) != 1 || is.na(overwrite)) {
+    stop("overwrite must be TRUE or FALSE.", call. = FALSE)
   }
 
   # Single data frame: write directly to file_path.
   if (is.data.frame(summary_data)) {
     if (!grepl("\\.csv$", file_path, ignore.case = TRUE)) {
       stop(
-        "`file_path` must end in .csv when exporting a single table.",
+        "file_path must end in .csv when exporting a single table.",
         call. = FALSE
       )
     }
@@ -176,7 +176,7 @@ export_policy_summary_tables <- function(summary_data,
       stop(
         "File already exists: ",
         file_path,
-        ". Set `overwrite = TRUE` to replace it.",
+        ". Set overwrite = TRUE to replace it.",
         call. = FALSE
       )
     }
@@ -198,7 +198,7 @@ export_policy_summary_tables <- function(summary_data,
   if (is.list(summary_data)) {
     if (is.null(names(summary_data)) || any(names(summary_data) == "")) {
       stop(
-        "`summary_data` must be a fully named list when exporting multiple tables.",
+        "summary_data must be a fully named list when exporting multiple tables.",
         call. = FALSE
       )
     }
@@ -230,7 +230,7 @@ export_policy_summary_tables <- function(summary_data,
         stop(
           "File already exists: ",
           out_path,
-          ". Set `overwrite = TRUE` to replace it.",
+          ". Set overwrite = TRUE to replace it.",
           call. = FALSE
         )
       }
@@ -246,7 +246,7 @@ export_policy_summary_tables <- function(summary_data,
   }
 
   stop(
-    "`summary_data` must be a data frame or a named list of data frames.",
+    "summary_data must be a data frame or a named list of data frames.",
     call. = FALSE
   )
 }

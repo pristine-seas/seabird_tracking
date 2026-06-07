@@ -1,533 +1,353 @@
-# tests/testthat/test-top_level_wrappers.R
-#
-# Tests for:
-#   clean_tracks()            (clean_tracks.R)
-#   export_spatial_outputs()  (export_spatial_outputs.R)
-#
-# Strategy
-# --------
-# Both wrappers delegate to module functions that are not yet implemented, so
-# all collaborator functions are mocked with local() + mockr / testthat::local_mocked_bindings.
-# Integration-style tests that need real data are tagged with skip_if() guards.
-
 library(testthat)
+library(dplyr)
+library(sf)
+library(ggplot2)
 
-# ── Shared minimal fixtures ──────────────────────────────────────────────────
 
-make_track_tbl <- function(n = 20L) {
-  tibble::tibble(
-    bird_id      = rep(c("A", "B"), each = n / 2L),
-    timestamp    = seq(
-      as.POSIXct("2023-01-01 00:00:00", tz = "UTC"),
-      by           = "1 hour",
-      length.out   = n
+
+# =============================================================================
+# test-top_level_wrappers.R
+# Tests only for functions that remain in top_level_wrappers.R
+# =============================================================================
+#
+# Tests for repeated functions were moved to their dedicated test files:
+#   - clean_tracks()              -> test-clean_tracks.R
+#   - summarize_movement()        -> test-summarize_movement.R
+#   - analyze_fisheries_overlap() -> test-analyze_fisheries_overlap.R
+#   - export_spatial_outputs()    -> test-export_spatial_outputs.R
+
+
+# ------------------------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------------------------
+
+make_track_df <- function() {
+  data.frame(
+    bird_id = c("bird_A", "bird_A", "bird_B"),
+    track_id = c("bird_A", "bird_A", "bird_B"),
+    Date = c("01/01/2026", "01/01/2026", "01/01/2026"),
+    Time = c("10:00:00", "11:00:00", "10:30:00"),
+    datetime_gmt = as.POSIXct(
+      c("2026-01-01 10:00:00", "2026-01-01 11:00:00", "2026-01-01 10:30:00"),
+      tz = "UTC"
     ),
-    lon          = seq(145.0, 145.5, length.out = n),
-    lat          = seq(-35.0, -35.5, length.out = n),
-    quality_flag = "ok"
+    longitude = c(175.0, 175.2, 176.0),
+    latitude = c(-20.0, -20.2, -21.0),
+    trip_id = c("trip_1", "trip_1", "trip_2"),
+    stringsAsFactors = FALSE
   )
 }
 
-# All module functions return their first argument unchanged so pipeline wiring
-# can be verified without real implementations.
-stub_identity <- function(data, ...) data
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# clean_tracks()
-# ═══════════════════════════════════════════════════════════════════════════════
-
-test_that("clean_tracks() errors on non-data-frame input", {
-  expect_error(clean_tracks("not a data frame"), "`data` must be a data frame")
-  expect_error(clean_tracks(1:10),               "`data` must be a data frame")
-  expect_error(clean_tracks(NULL),               "`data` must be a data frame")
-})
-
-test_that("clean_tracks() errors on invalid max_speed", {
-  df <- make_track_tbl()
-  expect_error(clean_tracks(df, max_speed = -1),  "single positive number")
-  expect_error(clean_tracks(df, max_speed = 0),   "single positive number")
-  expect_error(clean_tracks(df, max_speed = "fast"), "single positive number")
-  expect_error(clean_tracks(df, max_speed = c(10, 20)), "single positive number")
-})
-
-test_that("clean_tracks() errors on invalid interval_minutes", {
-  df <- make_track_tbl()
-  expect_error(clean_tracks(df, interval_minutes = 0),  "single positive number")
-  expect_error(clean_tracks(df, interval_minutes = -60), "single positive number")
-})
-
-test_that("clean_tracks() errors on invalid max_gap_minutes", {
-  df <- make_track_tbl()
-  expect_error(clean_tracks(df, max_gap_minutes = 0),   "single positive number")
-  expect_error(clean_tracks(df, max_gap_minutes = "big"), "single positive number")
-})
-
-test_that("clean_tracks() errors on invalid land_polygon type", {
-  df <- make_track_tbl()
-  expect_error(
-    clean_tracks(df, land_polygon = data.frame(x = 1)),
-    "sf/sfc/Spatial object or NULL"
-  )
-})
-
-test_that("clean_tracks() runs full pipeline and returns a data frame", {
-  df <- make_track_tbl()
-
-  local_mocked_bindings(
-    coerce_track_tbl              = stub_identity,
-    flag_low_quality_fixes        = stub_identity,
-    remove_duplicate_fixes        = stub_identity,
-    filter_speed_outliers         = stub_identity,
-    regularize_tracks             = stub_identity,
-    interpolate_tracks            = stub_identity,
-    .env = environment(clean_tracks)
-  )
-
-  out <- suppressMessages(clean_tracks(df, verbose = FALSE))
-
-  expect_s3_class(out, "data.frame")
-  expect_equal(nrow(out), nrow(df))
-})
-
-test_that("clean_tracks() attaches a cleaning_log attribute", {
-  df <- make_track_tbl()
-
-  local_mocked_bindings(
-    coerce_track_tbl              = stub_identity,
-    flag_low_quality_fixes        = stub_identity,
-    remove_duplicate_fixes        = stub_identity,
-    filter_speed_outliers         = stub_identity,
-    regularize_tracks             = stub_identity,
-    interpolate_tracks            = stub_identity,
-    .env = environment(clean_tracks)
-  )
-
-  out  <- suppressMessages(clean_tracks(df, verbose = FALSE))
-  log  <- attr(out, "cleaning_log")
-
-  expect_type(log, "list")
-  expect_true("input" %in% names(log))
-  expect_equal(log$input, nrow(df))
-})
-
-test_that("clean_tracks() calls standardize_gps_columns() when col_map supplied", {
-  df      <- make_track_tbl()
-  col_map <- c(bird_id = "ring_id")
-  called  <- FALSE
-
-  local_mocked_bindings(
-    standardize_gps_columns  = function(data, col_map) { called <<- TRUE; data },
-    flag_low_quality_fixes   = stub_identity,
-    remove_duplicate_fixes   = stub_identity,
-    filter_speed_outliers    = stub_identity,
-    regularize_tracks        = stub_identity,
-    interpolate_tracks       = stub_identity,
-    .env = environment(clean_tracks)
-  )
-
-  suppressMessages(clean_tracks(df, col_map = col_map, verbose = FALSE))
-  expect_true(called)
-})
-
-test_that("clean_tracks() calls coerce_track_tbl() when no col_map supplied", {
-  df     <- make_track_tbl()
-  called <- FALSE
-
-  local_mocked_bindings(
-    coerce_track_tbl         = function(data, ...) { called <<- TRUE; data },
-    flag_low_quality_fixes   = stub_identity,
-    remove_duplicate_fixes   = stub_identity,
-    filter_speed_outliers    = stub_identity,
-    regularize_tracks        = stub_identity,
-    interpolate_tracks       = stub_identity,
-    .env = environment(clean_tracks)
-  )
-
-  suppressMessages(clean_tracks(df, verbose = FALSE))
-  expect_true(called)
-})
-
-test_that("clean_tracks() skips flag_low_quality_fixes() when flag_quality = FALSE", {
-  df     <- make_track_tbl()
-  called <- FALSE
-
-  local_mocked_bindings(
-    coerce_track_tbl         = stub_identity,
-    flag_low_quality_fixes   = function(data, ...) { called <<- TRUE; data },
-    remove_duplicate_fixes   = stub_identity,
-    filter_speed_outliers    = stub_identity,
-    regularize_tracks        = stub_identity,
-    interpolate_tracks       = stub_identity,
-    .env = environment(clean_tracks)
-  )
-
-  suppressMessages(clean_tracks(df, flag_quality = FALSE, verbose = FALSE))
-  expect_false(called)
-})
-
-test_that("clean_tracks() calls filter_on_land_or_invalid_points() when land_polygon provided", {
-  df     <- make_track_tbl()
-  land   <- structure(list(), class = c("sf", "data.frame"))
-  called <- FALSE
-
-  local_mocked_bindings(
-    coerce_track_tbl                  = stub_identity,
-    flag_low_quality_fixes            = stub_identity,
-    remove_duplicate_fixes            = stub_identity,
-    filter_speed_outliers             = stub_identity,
-    filter_on_land_or_invalid_points  = function(data, ...) { called <<- TRUE; data },
-    regularize_tracks                 = stub_identity,
-    interpolate_tracks                = stub_identity,
-    .env = environment(clean_tracks)
-  )
-
-  suppressMessages(
-    clean_tracks(df, land_polygon = land, verbose = FALSE)
-  )
-  expect_true(called)
-})
-
-test_that("clean_tracks() drops flagged rows when drop_flagged = TRUE", {
-  df <- make_track_tbl()
-  df$quality_flag[1:5] <- "low"
-
-  local_mocked_bindings(
-    coerce_track_tbl       = stub_identity,
-    flag_low_quality_fixes = stub_identity,
-    remove_duplicate_fixes = stub_identity,
-    filter_speed_outliers  = stub_identity,
-    regularize_tracks      = stub_identity,
-    interpolate_tracks     = stub_identity,
-    .env = environment(clean_tracks)
-  )
-
-  out <- suppressMessages(
-    clean_tracks(df, drop_flagged = TRUE, verbose = FALSE)
-  )
-  expect_true(all(out$quality_flag == "ok"))
-  expect_equal(nrow(out), nrow(df) - 5L)
-})
-
-test_that("clean_tracks() retains flagged rows when drop_flagged = FALSE (default)", {
-  df <- make_track_tbl()
-  df$quality_flag[1:3] <- "low"
-
-  local_mocked_bindings(
-    coerce_track_tbl       = stub_identity,
-    flag_low_quality_fixes = stub_identity,
-    remove_duplicate_fixes = stub_identity,
-    filter_speed_outliers  = stub_identity,
-    regularize_tracks      = stub_identity,
-    interpolate_tracks     = stub_identity,
-    .env = environment(clean_tracks)
-  )
-
-  out <- suppressMessages(clean_tracks(df, verbose = FALSE))
-  expect_equal(nrow(out), nrow(df))
-})
-
-test_that("clean_tracks() passes max_speed to filter_speed_outliers()", {
-  df             <- make_track_tbl()
-  received_speed <- NA_real_
-
-  local_mocked_bindings(
-    coerce_track_tbl       = stub_identity,
-    flag_low_quality_fixes = stub_identity,
-    remove_duplicate_fixes = stub_identity,
-    filter_speed_outliers  = function(data, max_speed, ...) {
-      received_speed <<- max_speed
-      data
-    },
-    regularize_tracks      = stub_identity,
-    interpolate_tracks     = stub_identity,
-    .env = environment(clean_tracks)
-  )
-
-  suppressMessages(clean_tracks(df, max_speed = 15, verbose = FALSE))
-  expect_equal(received_speed, 15)
-})
-
-test_that("clean_tracks() is silent when verbose = FALSE", {
-  df <- make_track_tbl()
-
-  local_mocked_bindings(
-    coerce_track_tbl       = stub_identity,
-    flag_low_quality_fixes = stub_identity,
-    remove_duplicate_fixes = stub_identity,
-    filter_speed_outliers  = stub_identity,
-    regularize_tracks      = stub_identity,
-    interpolate_tracks     = stub_identity,
-    .env = environment(clean_tracks)
-  )
-
-  expect_silent(clean_tracks(df, verbose = FALSE))
-})
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# export_spatial_outputs()
-# ═══════════════════════════════════════════════════════════════════════════════
-
-make_sf_point <- function() {
+make_track_sf <- function() {
+  df <- make_track_df()
   sf::st_as_sf(
-    data.frame(lon = c(145.1, 145.2), lat = c(-35.1, -35.2)),
-    coords = c("lon", "lat"),
-    crs    = 4326
+    df,
+    coords = c("longitude", "latitude"),
+    crs = 4326,
+    remove = FALSE
   )
 }
 
-test_that("export_spatial_outputs() errors on non-list results", {
-  expect_error(export_spatial_outputs("not a list"), "`results` must be a named list")
-  expect_error(export_spatial_outputs(42),           "`results` must be a named list")
-})
+make_poly_sf <- function(value_col = TRUE) {
+  p1 <- sf::st_polygon(list(rbind(
+    c(174, -22),
+    c(177, -22),
+    c(177, -19),
+    c(174, -19),
+    c(174, -22)
+  )))
 
-test_that("export_spatial_outputs() errors on invalid out_dir", {
-  expect_error(export_spatial_outputs(list(), out_dir = ""),    "non-empty character")
-  expect_error(export_spatial_outputs(list(), out_dir = 123),   "non-empty character")
-  expect_error(export_spatial_outputs(list(), out_dir = c("a", "b")), "non-empty character")
-})
+  out <- sf::st_sf(
+    iso3 = "USA",
+    sovereign = "United States",
+    eez_name = "US_EEZ",
+    id = "poly_1",
+    geometry = sf::st_sfc(p1, crs = 4326)
+  )
 
-test_that("export_spatial_outputs() errors on invalid overwrite", {
+  if (isTRUE(value_col)) {
+    out$total_overlap <- 10
+    out$level_pct <- 50
+  }
+
+  out
+}
+
+
+# ------------------------------------------------------------------------------
+# estimate_space_use()
+# ------------------------------------------------------------------------------
+
+test_that("estimate_space_use validates file_path before running workflow", {
   expect_error(
-    export_spatial_outputs(list(), overwrite = "yes"),
-    "TRUE or FALSE"
+    estimate_space_use(file_path = NA_character_),
+    "single non-missing character string"
+  )
+
+  expect_error(
+    estimate_space_use(file_path = c("a.csv", "b.csv")),
+    "single non-missing character string"
+  )
+
+  expect_error(
+    estimate_space_use(file_path = tempfile(fileext = ".csv")),
+    "File does not exist"
   )
 })
 
-test_that("export_spatial_outputs() creates out_dir if it does not exist", {
-  tmp <- file.path(tempdir(), paste0("test_export_", sample.int(1e6, 1)))
-  on.exit(unlink(tmp, recursive = TRUE))
+test_that("estimate_space_use validates numeric workflow arguments", {
+  tmp <- tempfile(fileext = ".csv")
+  write.csv(make_track_df(), tmp, row.names = FALSE)
 
-  local_mocked_bindings(
-    export_gis_layers              = function(...) invisible(NULL),
-    export_ud_polygons             = function(...) invisible(NULL),
-    export_policy_summary_tables   = function(...) invisible(NULL),
-    .env = environment(export_spatial_outputs)
+  expect_error(
+    estimate_space_use(tmp, max_speed = -1),
+    "max_speed"
   )
 
-  suppressMessages(export_spatial_outputs(list(), out_dir = tmp, verbose = FALSE))
-  expect_true(dir.exists(tmp))
-})
-
-test_that("export_spatial_outputs() returns character(0) for empty results", {
-  tmp <- tempdir()
-
-  local_mocked_bindings(
-    export_gis_layers              = function(...) invisible(NULL),
-    export_ud_polygons             = function(...) invisible(NULL),
-    export_policy_summary_tables   = function(...) invisible(NULL),
-    .env = environment(export_spatial_outputs)
+  expect_error(
+    estimate_space_use(tmp, interval_minutes = 0),
+    "interval_minutes"
   )
 
-  out <- suppressMessages(
-    export_spatial_outputs(list(), out_dir = tmp, verbose = FALSE)
-  )
-  expect_equal(out, character(0))
-})
-
-test_that("export_spatial_outputs() writes tracks layer and returns its path", {
-  tmp      <- file.path(tempdir(), paste0("eso_", sample.int(1e6, 1)))
-  on.exit(unlink(tmp, recursive = TRUE))
-  pts      <- make_sf_point()
-  results  <- list(tracks = pts)
-  written_path <- NULL
-
-  local_mocked_bindings(
-    export_gis_layers              = function(layer, file_path, ...) {
-      written_path <<- file_path
-      invisible(NULL)
-    },
-    export_ud_polygons             = function(...) invisible(NULL),
-    export_policy_summary_tables   = function(...) invisible(NULL),
-    .env = environment(export_spatial_outputs)
+  expect_error(
+    estimate_space_use(tmp, density_levels = c(0, 95)),
+    "density_levels"
   )
 
-  out <- suppressMessages(
-    export_spatial_outputs(results, out_dir = tmp, verbose = FALSE)
-  )
-
-  expect_length(out, 1L)
-  expect_equal(names(out), "tracks")
-  expect_match(out[["tracks"]], "tracks\\.gpkg$")
-})
-
-test_that("export_spatial_outputs() writes combined UD contours when core_area and home_range present", {
-  tmp  <- file.path(tempdir(), paste0("eso_ud_", sample.int(1e6, 1)))
-  on.exit(unlink(tmp, recursive = TRUE))
-
-  poly <- make_sf_point()  # stand-in for polygon
-  results <- list(core_area = poly, home_range = poly)
-  ud_path <- NULL
-
-  local_mocked_bindings(
-    export_gis_layers    = function(layer, file_path, ...) invisible(NULL),
-    export_ud_polygons   = function(ud_polys, file_path, ...) {
-      ud_path <<- file_path
-      invisible(NULL)
-    },
-    export_policy_summary_tables = function(...) invisible(NULL),
-    .env = environment(export_spatial_outputs)
-  )
-
-  out <- suppressMessages(
-    export_spatial_outputs(results, out_dir = tmp, verbose = FALSE)
-  )
-
-  expect_true("ud_contours" %in% names(out))
-  expect_match(ud_path, "ud_contours\\.gpkg$")
-})
-
-test_that("export_spatial_outputs() writes jurisdiction and policy tables", {
-  tmp  <- file.path(tempdir(), paste0("eso_tbl_", sample.int(1e6, 1)))
-  on.exit(unlink(tmp, recursive = TRUE))
-
-  juris  <- data.frame(zone = "EEZ_AU", hours = 42.5)
-  policy <- data.frame(area = "MPA_A",  pct = 0.18)
-  results <- list(jurisdiction_summary = juris, policy_summary = policy)
-  table_paths <- character(0)
-
-  local_mocked_bindings(
-    export_gis_layers            = function(...) invisible(NULL),
-    export_ud_polygons           = function(...) invisible(NULL),
-    export_policy_summary_tables = function(tbl, file_path, ...) {
-      table_paths <<- c(table_paths, file_path)
-      invisible(NULL)
-    },
-    .env = environment(export_spatial_outputs)
-  )
-
-  out <- suppressMessages(
-    export_spatial_outputs(results, out_dir = tmp, verbose = FALSE)
-  )
-
-  expect_setequal(names(out), c("jurisdiction_summary", "policy_summary"))
-  expect_length(table_paths, 2L)
-})
-
-test_that("export_spatial_outputs() warns and skips non-spatial GIS entries", {
-  tmp  <- file.path(tempdir(), paste0("eso_warn_", sample.int(1e6, 1)))
-  on.exit(unlink(tmp, recursive = TRUE))
-  results <- list(tracks = data.frame(x = 1))
-
-  local_mocked_bindings(
-    export_gis_layers            = function(...) invisible(NULL),
-    export_ud_polygons           = function(...) invisible(NULL),
-    export_policy_summary_tables = function(...) invisible(NULL),
-    .env = environment(export_spatial_outputs)
-  )
-
-  expect_warning(
-    suppressMessages(
-      export_spatial_outputs(results, out_dir = tmp, verbose = FALSE)
-    ),
-    "not a recognised spatial object"
+  expect_error(
+    estimate_space_use(tmp, density_levels = c(50, 100)),
+    "density_levels"
   )
 })
 
-test_that("export_spatial_outputs() warns and skips when file exists and overwrite = FALSE", {
-  tmp <- file.path(tempdir(), paste0("eso_ow_", sample.int(1e6, 1)))
-  dir.create(tmp)
-  on.exit(unlink(tmp, recursive = TRUE))
+test_that("estimate_space_use validates colony coordinate structure", {
+  tmp <- tempfile(fileext = ".csv")
+  write.csv(make_track_df(), tmp, row.names = FALSE)
 
-  existing <- file.path(tmp, "tracks.gpkg")
-  file.create(existing)
-
-  pts     <- make_sf_point()
-  results <- list(tracks = pts)
-
-  local_mocked_bindings(
-    export_gis_layers            = function(...) invisible(NULL),
-    export_ud_polygons           = function(...) invisible(NULL),
-    export_policy_summary_tables = function(...) invisible(NULL),
-    .env = environment(export_spatial_outputs)
+  expect_error(
+    estimate_space_use(tmp, colony_coords = c(x = 175, y = -20)),
+    "colony_coords"
   )
 
-  expect_warning(
-    suppressMessages(
-      export_spatial_outputs(results, out_dir = tmp, overwrite = FALSE,
-                              verbose = FALSE)
-    ),
-    "overwrite = FALSE"
+  expect_error(
+    estimate_space_use(tmp, colony_coords = c(lon = 175)),
+    "colony_coords"
   )
 })
 
-test_that("export_spatial_outputs() respects gis_format = 'geojson'", {
-  tmp  <- file.path(tempdir(), paste0("eso_fmt_", sample.int(1e6, 1)))
-  on.exit(unlink(tmp, recursive = TRUE))
-  pts     <- make_sf_point()
-  results <- list(tracks = pts)
-  saved   <- NULL
 
-  local_mocked_bindings(
-    export_gis_layers            = function(layer, file_path, ...) {
-      saved <<- file_path; invisible(NULL)
-    },
-    export_ud_polygons           = function(...) invisible(NULL),
-    export_policy_summary_tables = function(...) invisible(NULL),
-    .env = environment(export_spatial_outputs)
+# ------------------------------------------------------------------------------
+# analyze_jurisdiction_overlap()
+# ------------------------------------------------------------------------------
+
+test_that("analyze_jurisdiction_overlap validates sf inputs", {
+  track_sf <- make_track_sf()
+  eez_sf <- make_poly_sf()
+
+  expect_error(
+    analyze_jurisdiction_overlap(data.frame(x = 1), eez_sf),
+    "track_data"
   )
 
-  suppressMessages(
-    export_spatial_outputs(results, out_dir = tmp, gis_format = "geojson",
-                            verbose = FALSE)
-  )
-  expect_match(saved, "\\.geojson$")
-})
-
-test_that("export_spatial_outputs() respects table_format = 'xlsx'", {
-  tmp  <- file.path(tempdir(), paste0("eso_xlsx_", sample.int(1e6, 1)))
-  on.exit(unlink(tmp, recursive = TRUE))
-  policy  <- data.frame(area = "MPA_A", pct = 0.1)
-  results <- list(policy_summary = policy)
-  saved   <- NULL
-
-  local_mocked_bindings(
-    export_gis_layers            = function(...) invisible(NULL),
-    export_ud_polygons           = function(...) invisible(NULL),
-    export_policy_summary_tables = function(tbl, file_path, ...) {
-      saved <<- file_path; invisible(NULL)
-    },
-    .env = environment(export_spatial_outputs)
+  expect_error(
+    analyze_jurisdiction_overlap(track_sf, data.frame(x = 1)),
+    "eez_layer"
   )
 
-  suppressMessages(
-    export_spatial_outputs(results, out_dir = tmp, table_format = "xlsx",
-                            verbose = FALSE)
-  )
-  expect_match(saved, "\\.xlsx$")
-})
-
-test_that("export_spatial_outputs() is silent when verbose = FALSE", {
-  tmp <- tempdir()
-
-  local_mocked_bindings(
-    export_gis_layers            = function(...) invisible(NULL),
-    export_ud_polygons           = function(...) invisible(NULL),
-    export_policy_summary_tables = function(...) invisible(NULL),
-    .env = environment(export_spatial_outputs)
+  expect_error(
+    analyze_jurisdiction_overlap(track_sf, eez_sf, mpa_layer = data.frame(x = 1)),
+    "mpa_layer"
   )
 
-  expect_silent(
-    export_spatial_outputs(list(), out_dir = tmp, verbose = FALSE)
+  expect_error(
+    analyze_jurisdiction_overlap(track_sf, eez_sf, priority_layer = data.frame(x = 1)),
+    "priority_layer"
   )
 })
 
-test_that("export_spatial_outputs() invisibly returns paths", {
-  tmp     <- file.path(tempdir(), paste0("eso_inv_", sample.int(1e6, 1)))
-  on.exit(unlink(tmp, recursive = TRUE))
-  pts     <- make_sf_point()
-  results <- list(tracks = pts)
+test_that("analyze_jurisdiction_overlap returns named workflow outputs when dependencies are stubbed", {
+  track_sf <- make_track_sf()
+  eez_sf <- make_poly_sf()
 
-  local_mocked_bindings(
-    export_gis_layers            = function(...) invisible(NULL),
-    export_ud_polygons           = function(...) invisible(NULL),
-    export_policy_summary_tables = function(...) invisible(NULL),
-    .env = environment(export_spatial_outputs)
-  )
+  old_overlay_eez_abnj <- if (exists("overlay_eez_abnj", mode = "function")) overlay_eez_abnj else NULL
+  old_calc_time <- if (exists("calc_time_in_jurisdictions", mode = "function")) calc_time_in_jurisdictions else NULL
+  old_calc_trans <- if (exists("calc_transboundary_movements", mode = "function")) calc_transboundary_movements else NULL
 
-  ret <- withVisible(
-    suppressMessages(
-      export_spatial_outputs(results, out_dir = tmp, verbose = FALSE)
+  overlay_eez_abnj <<- function(track_data, eez_layer) {
+    track_data$jurisdiction <- "EEZ"
+    track_data
+  }
+
+  calc_time_in_jurisdictions <<- function(track_data) {
+    data.frame(
+      bird_id = unique(track_data$track_id),
+      jurisdiction = "EEZ",
+      total_hours = 1,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  calc_transboundary_movements <<- function(track_data) {
+    data.frame(
+      bird_id = unique(track_data$track_id),
+      is_transboundary = FALSE,
+      crossed_into_abnj = FALSE,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  on.exit({
+    if (is.null(old_overlay_eez_abnj)) {
+      rm(overlay_eez_abnj, envir = .GlobalEnv)
+    } else {
+      overlay_eez_abnj <<- old_overlay_eez_abnj
+    }
+
+    if (is.null(old_calc_time)) {
+      rm(calc_time_in_jurisdictions, envir = .GlobalEnv)
+    } else {
+      calc_time_in_jurisdictions <<- old_calc_time
+    }
+
+    if (is.null(old_calc_trans)) {
+      rm(calc_transboundary_movements, envir = .GlobalEnv)
+    } else {
+      calc_transboundary_movements <<- old_calc_trans
+    }
+  }, add = TRUE)
+
+  res <- analyze_jurisdiction_overlap(track_sf, eez_sf)
+
+  expect_type(res, "list")
+  expect_named(
+    res,
+    c(
+      "labeled_tracks",
+      "jurisdiction_summary",
+      "mpa_tracks",
+      "priority_tracks",
+      "transboundary_summary",
+      "policy_summary"
     )
   )
-  expect_false(ret$visible)
+  expect_s3_class(res$labeled_tracks, "sf")
+  expect_s3_class(res$jurisdiction_summary, "data.frame")
+  expect_s3_class(res$transboundary_summary, "data.frame")
+  expect_null(res$mpa_tracks)
+  expect_null(res$priority_tracks)
+  expect_null(res$policy_summary)
+})
+
+
+# ------------------------------------------------------------------------------
+# plot_tracking_results()
+# ------------------------------------------------------------------------------
+
+test_that("plot_tracking_results returns an empty list when no inputs are supplied", {
+  plots <- plot_tracking_results()
+
+  expect_type(plots, "list")
+  expect_equal(length(plots), 0)
+})
+
+test_that("plot_tracking_results validates colony coordinates", {
+  expect_error(
+    plot_tracking_results(track_data = make_track_df(), colony_coords = c(x = 1, y = 2)),
+    "colony_coords"
+  )
+})
+
+test_that("plot_tracking_results creates track and density plots from track data", {
+  plots <- plot_tracking_results(track_data = make_track_df())
+
+  expect_type(plots, "list")
+  expect_named(plots, c("tracks", "density"))
+  expect_s3_class(plots$tracks, "ggplot")
+  expect_s3_class(plots$density, "ggplot")
+})
+
+test_that("plot_tracking_results creates trip, fisheries, and hotspot plots when inputs are supplied", {
+  track_df <- make_track_df()
+  fisheries_grid <- make_poly_sf()
+  hotspot_polys <- make_poly_sf()
+
+  plots <- plot_tracking_results(
+    trip_data = track_df,
+    fisheries_grid = fisheries_grid,
+    isopleth_polygons = hotspot_polys
+  )
+
+  expect_type(plots, "list")
+  expect_true(all(c("trips", "fisheries_heatmap", "hotspots") %in% names(plots)))
+  expect_s3_class(plots$trips, "ggplot")
+  expect_s3_class(plots$fisheries_heatmap, "ggplot")
+  expect_s3_class(plots$hotspots, "ggplot")
+})
+
+
+# ------------------------------------------------------------------------------
+# export_gis_layers()
+# ------------------------------------------------------------------------------
+
+test_that("export_gis_layers validates output path and spatial layer type", {
+  layer <- make_poly_sf()
+
+  expect_error(
+    export_gis_layers(layer, file_path = NA_character_),
+    "file_path"
+  )
+
+  expect_error(
+    export_gis_layers(data.frame(x = 1), file_path = tempfile(fileext = ".gpkg")),
+    "recognised spatial object"
+  )
+})
+
+test_that("export_gis_layers writes sf objects and invisibly returns the file path", {
+  layer <- make_poly_sf()
+  out_path <- tempfile(fileext = ".gpkg")
+
+  written <- export_gis_layers(layer, out_path)
+
+  expect_equal(written, out_path)
+  expect_true(file.exists(out_path))
+})
+
+
+# ------------------------------------------------------------------------------
+# export_ud_polygons()
+# ------------------------------------------------------------------------------
+
+test_that("export_ud_polygons writes a single sf object", {
+  ud <- make_poly_sf()
+  out_path <- tempfile(fileext = ".gpkg")
+
+  written <- export_ud_polygons(ud, out_path)
+
+  expect_equal(written, out_path)
+  expect_true(file.exists(out_path))
+})
+
+test_that("export_ud_polygons combines and writes a list of sf objects", {
+  ud1 <- make_poly_sf()
+  ud2 <- make_poly_sf()
+  ud2$id <- "poly_2"
+  out_path <- tempfile(fileext = ".gpkg")
+
+  written <- export_ud_polygons(list(core = ud1, home = ud2), out_path)
+
+  expect_equal(written, out_path)
+  expect_true(file.exists(out_path))
+})
+
+test_that("export_ud_polygons errors when no sf polygons are supplied", {
+  expect_error(
+    export_ud_polygons(list(a = data.frame(x = 1)), tempfile(fileext = ".gpkg")),
+    "ud_polys"
+  )
+
+  expect_error(
+    export_ud_polygons(data.frame(x = 1), tempfile(fileext = ".gpkg")),
+    "ud_polys"
+  )
 })

@@ -2,7 +2,7 @@
 % Please edit documentation in R/jurisdiction_overlay.R
 \name{read_management_layers}
 \alias{read_management_layers}
-\title{Read Management Layers (EEZ, ABNJ, MPA, Conservation Priority)}
+\title{Read Management Layers}
 \usage{
 read_management_layers(
   eez_path,
@@ -17,86 +17,32 @@ read_management_layers(
 )
 }
 \arguments{
-\item{eez_path}{Character. Path to EEZ (Exclusive Economic Zone) layer.
-Accepts .gpkg, .geojson, .shp, or directory.}
+\item{eez_path}{Character. Path to EEZ layer.}
 
-\item{abnj_path}{Character. Optional path to ABNJ (Area Beyond National
-Jurisdiction) layer. If NULL, skipped.}
+\item{abnj_path}{Character. Optional path to ABNJ layer. If `NULL`, skipped.}
 
-\item{mpa_path}{Character. Optional path to MPA (Marine Protected Area)
-layer. If NULL, skipped.}
+\item{mpa_path}{Character. Optional path to MPA layer. If `NULL`, skipped.}
 
-\item{conservation_path}{Character. Optional path to conservation-priority layer.
-If NULL, skipped.}
+\item{conservation_path}{Character. Optional path to conservation-priority
+layer. If `NULL`, skipped.}
 
-\item{target_crs}{Numeric or character. Target CRS to reproject all layers to.
-Default 4326 (WGS84). Pass NULL to skip reprojection.}
+\item{target_crs}{Numeric or character. Target CRS for all layers. Default is
+`4326`. Pass `NULL` to skip reprojection.}
 
-\item{layer_name}{Character. For multi-layer files (e.g., .gpkg),
-specify which layer to read. Default NULL (read first/default).}
+\item{layer_name}{Character. Optional layer name for multi-layer files such as
+GeoPackages.}
 
-\item{simplify}{Logical. If TRUE, simplify geometries to reduce file size.
-Default FALSE.}
+\item{simplify}{Logical. If `TRUE`, simplify geometries.}
 
-\item{simplify_tolerance}{Numeric. Tolerance for simplification in degrees
-(if simplify = TRUE). Default 0.01.}
+\item{simplify_tolerance}{Numeric. Simplification tolerance.}
 
-\item{validate}{Logical. If TRUE, run basic sf validity checks.
-Default TRUE.}
+\item{validate}{Logical. If `TRUE`, run basic geometry validity checks.}
 }
 \value{
-A named list of sf objects:
-  - \code{eez}:             EEZ layer (required).
-  - \code{abnj}:            ABNJ layer (if provided).
-  - \code{mpa}:             MPA layer (if provided).
-  - \code{conservation}:    Conservation-priority layer (if provided).
-
-  Each object has attributes:
-  - \code{source_path}:     Original file path.
-  - \code{crs}:             Coordinate reference system.
-  - \code{n_features}:      Number of features.
-  - \code{read_date}:       Timestamp when layer was read.
+A named list of `sf` objects with class `management_layers`.
 }
 \description{
-Imports spatial management layers from disk, validates their CRS,
-and returns them as a named list of sf objects. Supports multiple
-input formats (GeoPackage, GeoJSON, Shapefile) and automatically
-reprojects to a common CRS if needed.
-}
-\details{
-Column naming: If a layer has a column typically used for jurisdiction names
-(e.g., \code{GEONAME}, \code{TERRITORY1}, \code{name}), it will be preserved
-as-is. No renaming is applied unless explicitly requested.
-
-Reprojection: All layers are reprojected to \code{target_crs} (default WGS84).
-This ensures spatial operations across layers work correctly.
-
-Simplification: For large polygon layers, setting \code{simplify = TRUE} can
-significantly reduce file size in memory and on disk. Use with caution as
-it may introduce small artifacts along boundaries.
-}
-\examples{
-\dontrun{
-# Read EEZ only
-layers <- read_management_layers(
-  eez_path = "data/eez_boundaries.gpkg"
-)
-
-# Read EEZ and MPA, reproject to Web Mercator
-layers <- read_management_layers(
-  eez_path = "data/eez_boundaries.gpkg",
-  mpa_path = "data/mpas.shp",
-  target_crs = 3857
-)
-
-# Read all layers with simplification
-layers <- read_management_layers(
-  eez_path = "data/eez_boundaries.gpkg",
-  abnj_path = "data/abnj.geojson",
-  mpa_path = "data/mpas.gpkg",
-  conservation_path = "data/conservation_priority.gpkg",
-  simplify = TRUE,
-  simplify_tolerance = 0.05
-)
-}
+Imports spatial management layers from disk, validates their CRS, and returns
+them as a named list of `sf` objects. Supported inputs include GeoPackage,
+GeoJSON, Shapefile, GML, and KML files.
 }

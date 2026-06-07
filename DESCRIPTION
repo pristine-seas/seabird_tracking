@@ -2,15 +2,16 @@ Type: Package
 Package: Shearwater
 Title: Analyze Wedge-Tailed Shearwater Movement and Fisheries Overlap
 Version: 0.1.0
-Author: Cooper Owen
-Maintainer: Cooper Owen <coopernowen@berkeley.edu>
-Description: Provides tools for cleaning GPS tracking data, segmenting trips, calculating movement metrics, and analyzing fisheries overlap for wedge-tailed shearwaters.
+Authors@R: person("Cooper", "Owen", email = "coopernowen@berkeley.edu", role = c("aut", "cre"))
+Description: Provides tools for cleaning GPS tracking data, segmenting trips,
+    calculating movement metrics, and analyzing fisheries overlap for
+    wedge-tailed shearwaters.
 License: MIT + file LICENSE
 URL: https://github.com/cooper61204/Shearwater
 BugReports: https://github.com/cooper61204/Shearwater/issues
-Depends: 
+Depends:
     R (>= 3.5)
-Imports: 
+Imports:
     adehabitatHR,
     dplyr,
     geosphere,
@@ -26,17 +27,14 @@ Imports:
     tibble,
     tidyr,
     tools
-Suggests: 
+Suggests:
     class,
     devtools,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0)
-VignetteBuilder: 
-    knitr
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 Encoding: UTF-8
 LazyData: true
-
-
 RoxygenNote: 7.3.3

@@ -2,7 +2,7 @@
 % Please edit documentation in R/trip_utils.R
 \name{classify_trip_phase}
 \alias{classify_trip_phase}
-\title{Classify Behavioral Flight Phases via Rule-Based Velocity Filtering}
+\title{Classify Behavioral Flight Phases}
 \usage{
 classify_trip_phase(
   track,
@@ -17,27 +17,32 @@ classify_trip_phase(
 )
 }
 \arguments{
-\item{track}{A data frame or tibble consisting of segmented foraging tracks.}
+\item{track}{A data frame or tibble containing segmented tracks.}
 
-\item{bird_id_col}{Character string. Unique tracker identity column name. Default: `"track_id"`.}
+\item{bird_id_col}{Character. Individual or track ID column.
+Default is `"track_id"`.}
 
-\item{trip_id_col}{Character string. Target trip identification column designation. Default: `"trip_id"`.}
+\item{trip_id_col}{Character. Trip ID column. Default is `"trip_id"`.}
 
-\item{datetime_col}{Character string. Datetime column descriptor. Default: `"datetime_gmt"`.}
+\item{datetime_col}{Character. Datetime column.
+Default is `"datetime_gmt"`.}
 
-\item{lon_col}{Character string. Track longitude column identifier. Default: `"longitude"`.}
+\item{lon_col}{Character. Longitude column. Default is `"longitude"`.}
 
-\item{lat_col}{Character string. Track latitude column identifier. Default: `"latitude"`.}
+\item{lat_col}{Character. Latitude column. Default is `"latitude"`.}
 
-\item{phase_col}{Character string. Behavioral classification label output column name. Default: `"phase"`.}
+\item{phase_col}{Character. Output phase column. Default is `"phase"`.}
 
-\item{commute_speed_threshold}{Numeric. Lower bounding velocity limit (m/s) defining commuting activities. Default: `5`.}
+\item{commute_speed_threshold}{Numeric. Speeds at or above this value are
+labeled `"commuting"`. Default is `5`.}
 
-\item{forage_speed_threshold}{Numeric. Upper bounding velocity limit (m/s) defining active foraging bounds. Default: `1`.}
+\item{forage_speed_threshold}{Numeric. Speeds at or below this value are
+labeled `"foraging"`. Default is `1`.}
 }
 \value{
-A modified tracking table updated with characterized behavioural phase identifiers.
+A data frame with speed calculations and a behavioral phase column.
 }
 \description{
-Characterizes individual behavioral segments based on point-to-point step-speed calculations.
+Classifies tracking points into simple rule-based phases using point-to-point
+speed calculations.
 }

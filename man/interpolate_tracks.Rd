@@ -14,31 +14,24 @@ interpolate_tracks(
 )
 }
 \arguments{
-\item{df}{A regularized track data.frame (output of \code{regularize_tracks()})}
+\item{df}{A regularized track data.frame}
 
 \item{id_col}{Column name for bird ID}
 
-\item{datetime_col}{Column name for the regular grid timestamps}
+\item{datetime_col}{Column name for regular grid timestamps}
 
 \item{lat_col}{Column name for latitude}
 
 \item{lon_col}{Column name for longitude}
 
-\item{max_gap_minutes}{Maximum gap length in minutes to interpolate across.
-Gaps longer than this are left as NA.}
+\item{max_gap_minutes}{Maximum gap length in minutes to interpolate across.}
 }
 \value{
-The input data.frame with two additional columns:
-  \itemize{
-    \item Latitude and longitude filled by interpolation where gap <= \code{max_gap_minutes}
-    \item \code{is_interpolated} – TRUE where a position was gap-filled
-  }
+The input data.frame with interpolated coordinates and
+  `is_interpolated`.
 }
 \description{
 Fills NA positions in a regularized track using linear interpolation,
-but only across gaps smaller than max_gap_minutes. Larger gaps are left
-as NA to avoid generating unreliable positions across long absences.
-}
-\details{
-This function expects output from \code{regularize_tracks()} as input.
+but only across gaps smaller than or equal to max_gap_minutes. Larger gaps
+are left as NA.
 }

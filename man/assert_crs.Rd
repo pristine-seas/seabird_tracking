@@ -32,8 +32,13 @@ spatial operations.
 }
 \examples{
 library(sf)
+
 pt <- st_sf(geometry = st_sfc(st_point(c(0, 0)), crs = 4326))
-assert_crs(pt)               # passes – CRS is set
-assert_crs(pt, 4326)         # passes – CRS matches
-assert_crs(pt, 32632)        # errors – CRS mismatch
+
+assert_crs(pt)       # passes: CRS is set
+assert_crs(pt, 4326) # passes: CRS matches
+
+\dontrun{
+assert_crs(pt, 32632) # errors: CRS mismatch
+}
 }

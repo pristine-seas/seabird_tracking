@@ -18,46 +18,30 @@ flag_low_quality_fixes(
 )
 }
 \arguments{
-\item{df}{A data.frame containing tracking data}
+\item{df}{A data frame.}
 
-\item{speed_col}{Column name for recorded speed (NULL to skip)}
+\item{speed_col}{Speed column.}
 
-\item{max_speed}{Maximum biologically plausible speed (same units as column)}
+\item{max_speed}{Optional speed threshold.}
 
-\item{distance_col}{Column name for step distance (NULL to skip)}
+\item{distance_col}{Distance column.}
 
-\item{max_distance}{Maximum plausible step distance (same units as column)}
+\item{max_distance}{Optional distance threshold.}
 
-\item{fix_type_col}{Column name for numeric fix type code, e.g. "Type" (NULL to skip).
-Inspect unique values in your Type column to determine which are valid before setting
-valid_fix_types.}
+\item{fix_type_col}{Fix type column.}
 
-\item{valid_fix_types}{Numeric or character vector of acceptable Type code values.
-Defaults to 0 (standard fix). Set to NULL to skip this check.}
+\item{valid_fix_types}{Valid fix-type values.}
 
-\item{essential_col}{Column name for device-native quality indicator, e.g. "Essential"
-(NULL to skip). Rows where value is not in valid_essential_values are flagged.}
+\item{essential_col}{Essential-quality column.}
 
-\item{valid_essential_values}{Vector of values considered good quality. Defaults to 1.}
+\item{valid_essential_values}{Valid essential values.}
 
-\item{prefix}{Prefix for all appended flag column names (default "..qa_")}
+\item{prefix}{Prefix for generated QA columns.}
 }
 \value{
-The input data.frame with additional logical QA flag columns:
-  \itemize{
-    \item \code{<prefix>high_speed} – speed exceeds \code{max_speed}
-    \item \code{<prefix>high_distance} – distance exceeds \code{max_distance}
-    \item \code{<prefix>invalid_type} – Type code not in \code{valid_fix_types}
-    \item \code{<prefix>low_essential} – Essential not in \code{valid_essential_values}
-    \item \code{<prefix>any} – TRUE if any individual flag is TRUE
-  }
+The input data frame with QA flag columns added.
 }
 \description{
-Adds QA flag fields for questionable locations based on multiple independent
-quality criteria. Does not remove any rows — flags are additive columns so
-downstream users can apply their own filtering thresholds.
-}
-\details{
-Designed for raw GPS tracking data with separate Date and Time columns,
-a numeric Type code, Speed, Distance, and a numeric Essential quality field.
+Adds logical QA columns for high speed, high distance, invalid fix type, and
+low essential-quality values when those checks are available.
 }

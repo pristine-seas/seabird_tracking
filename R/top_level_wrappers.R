@@ -1,283 +1,24 @@
 # =============================================================================
 # top_level_wrappers.R
-# Top-level workflow wrappers for the Shearwater package
+# Non-duplicated top-level workflow wrappers for the Shearwater package
 # =============================================================================
-
-
-#' Clean GPS Tracking Data
-#'
-#' Runs the GPS import, standardization, duplicate filtering, speed filtering,
-#' and optional regularization workflow.
-#'
-#' @param file_path Character. Path to the raw GPS data file.
-#' @param col_map Optional named character vector for column standardization.
-#' @param format Character. Input file format. Default is `"csv"`.
-#' @param max_speed Numeric. Maximum allowed speed for filtering outliers.
-#' @param speed_col Character. Name of the speed column.
-#' @param regularize Logical. If `TRUE`, regularize tracks to a fixed interval.
-#' @param interval_minutes Numeric. Regularization interval in minutes.
-#'
-#' @return A cleaned GPS data frame.
-#' @export
-clean_tracks <- function(file_path,
-                         col_map = NULL,
-                         format = "csv",
-                         max_speed = 100,
-                         speed_col = "Speed",
-                         regularize = TRUE,
-                         interval_minutes = 30) {
-  if (!is.character(file_path) || length(file_path) != 1 || is.na(file_path)) {
-    stop("`file_path` must be a single non-missing character string.", call. = FALSE)
-  }
-
-  if (!file.exists(file_path)) {
-    stop("File does not exist: ", file_path, call. = FALSE)
-  }
-
-  raw_data <- read_gps_data(
-    file_path = file_path,
-    format = format
-  )
-
-  std_data <- standardize_gps_columns(
-    raw_data = raw_data,
-    col_map = col_map
-  )
-
-  if (all(c("timestamp", "bird_id", "lat", "lon") %in% names(std_data))) {
-    std_data <- std_data |>
-      dplyr::mutate(
-        Date = format(.data$timestamp, "%m/%d/%Y"),
-        Time = format(.data$timestamp, "%H:%M:%S")
-      ) |>
-      dplyr::rename(
-        ID = .data$bird_id,
-        Latitude = .data$lat,
-        Longitude = .data$lon
-      )
-  }
-
-  clean_data <- remove_duplicate_fixes(
-    df = std_data,
-    id_col = "ID",
-    datetime_col = NULL,
-    date_col = "Date",
-    time_col = "Time"
-  )
-
-  if (speed_col %in% names(clean_data)) {
-    clean_data <- filter_speed_outliers(
-      df = clean_data,
-      max_speed = max_speed,
-      speed_col = speed_col,
-      method = "remove"
-    )
-  }
-
-  if (regularize) {
-    clean_data <- regularize_tracks(
-      df = clean_data,
-      id_col = "ID",
-      date_col = "Date",
-      time_col = "Time",
-      lat_col = "Latitude",
-      lon_col = "Longitude",
-      interval_minutes = interval_minutes
-    )
-  }
-
-  clean_data
-}
-
-
-#' Summarize Movement Metrics
-#'
-#' Runs trip segmentation, optional phase classification, trip-level movement
-#' metrics, and individual/population movement summaries.
-#'
-#' @param track A data frame containing GPS tracking data.
-#' @param colony_coords Named numeric vector with `lon` and `lat`.
-#' @param already_segmented Logical. If `TRUE`, assumes `track` already contains
-#'   a trip ID column.
-#' @param classify_phases Logical. If `TRUE`, classifies trip phases.
-#' @param bird_id_col Character. Bird or track ID column.
-#' @param trip_id_col Character. Trip ID column.
-#' @param datetime_col Character. Datetime column.
-#' @param colony_flag_col Character. Colony flag column.
-#' @param lon_col Character. Longitude column.
-#' @param lat_col Character. Latitude column.
-#' @param phase_col Character. Phase output column.
-#' @param duration_units Character. Duration units.
-#' @param include_spatial Logical. If `TRUE`, calculate centroids and foraging ranges.
-#'
-#' @return A named list of movement outputs.
-#' @export
-summarize_movement <- function(track,
-                               colony_coords,
-                               already_segmented = FALSE,
-                               classify_phases = TRUE,
-                               bird_id_col = "track_id",
-                               trip_id_col = "trip_id",
-                               datetime_col = "datetime_gmt",
-                               colony_flag_col = "at_colony",
-                               lon_col = "longitude",
-                               lat_col = "latitude",
-                               phase_col = "phase",
-                               duration_units = "hours",
-                               include_spatial = TRUE) {
-  if (!is.data.frame(track)) {
-    stop("`track` must be a data frame or tibble.", call. = FALSE)
-  }
-
-  if (!is.numeric(colony_coords) ||
-      !all(c("lon", "lat") %in% names(colony_coords))) {
-    stop("`colony_coords` must be a named numeric vector with names `lon` and `lat`.",
-         call. = FALSE)
-  }
-
-  needed <- c(bird_id_col, datetime_col, lon_col, lat_col)
-
-  if (already_segmented) {
-    needed <- c(needed, trip_id_col)
-  } else {
-    needed <- c(needed, colony_flag_col)
-  }
-
-  missing_cols <- setdiff(needed, names(track))
-
-  if (length(missing_cols) > 0) {
-    stop("Missing: ", paste(missing_cols, collapse = ", "), call. = FALSE)
-  }
-
-  if (!already_segmented) {
-    processed_track <- segment_trips(
-      track = track,
-      bird_id_col = bird_id_col,
-      datetime_col = datetime_col,
-      colony_flag_col = colony_flag_col,
-      trip_id_col = trip_id_col
-    )
-  } else {
-    processed_track <- track
-  }
-
-  if (classify_phases) {
-    processed_track <- classify_trip_phase(
-      track = processed_track,
-      bird_id_col = bird_id_col,
-      trip_id_col = trip_id_col,
-      datetime_col = datetime_col,
-      lon_col = lon_col,
-      lat_col = lat_col,
-      phase_col = phase_col
-    )
-  }
-
-  trip_summary <- summarize_trips(
-    track = processed_track,
-    bird_id_col = bird_id_col,
-    trip_id_col = trip_id_col,
-    datetime_col = datetime_col,
-    distance_col = "dist_to_colony_m",
-    phase_col = phase_col
-  )
-
-  trip_distance <- calc_trip_distance(
-    trip_data = processed_track,
-    bird_id_col = bird_id_col,
-    trip_id_col = trip_id_col,
-    datetime_col = datetime_col,
-    lon_col = lon_col,
-    lat_col = lat_col
-  )
-
-  trip_duration <- calc_trip_duration(
-    trip_data = processed_track,
-    bird_id_col = bird_id_col,
-    trip_id_col = trip_id_col,
-    datetime_col = datetime_col,
-    units = duration_units
-  )
-
-  path_length <- calc_path_length(
-    track_data = processed_track,
-    bird_id_col = bird_id_col,
-    trip_id_col = trip_id_col,
-    datetime_col = datetime_col,
-    lon_col = lon_col,
-    lat_col = lat_col
-  )
-
-  max_distance <- calc_max_distance_from_colony(
-    trip_data = processed_track,
-    colony_coords = colony_coords,
-    bird_id_col = bird_id_col,
-    trip_id_col = trip_id_col,
-    lon_col = lon_col,
-    lat_col = lat_col
-  )
-
-  join_cols <- c(bird_id_col, trip_id_col)
-
-  trip_metrics <- trip_distance |>
-    dplyr::left_join(trip_duration, by = join_cols) |>
-    dplyr::left_join(path_length, by = join_cols) |>
-    dplyr::left_join(max_distance, by = join_cols)
-
-  individual_metrics <- summarize_individual_metrics(
-    trip_metrics = trip_metrics,
-    bird_id_col = bird_id_col,
-    trip_id_col = trip_id_col
-  )
-
-  population_metrics <- summarize_population_metrics(
-    individual_metrics = individual_metrics,
-    bird_id_col = bird_id_col
-  )
-
-  centroids <- NULL
-  foraging_ranges <- NULL
-
-  if (include_spatial) {
-    centroids <- calc_track_centroid(
-      track_data = processed_track,
-      bird_id_col = bird_id_col,
-      trip_id_col = NULL,
-      lon_col = lon_col,
-      lat_col = lat_col,
-      crs = 4326
-    )
-
-    if (classify_phases && phase_col %in% names(processed_track)) {
-      foraging_ranges <- calc_foraging_range(
-        track_data = processed_track,
-        bird_id_col = bird_id_col,
-        lon_col = lon_col,
-        lat_col = lat_col,
-        phase_col = phase_col,
-        foraging_value = "foraging",
-        method = "convex_hull",
-        crs = 4326
-      )
-    }
-  }
-
-  list(
-    processed_track = processed_track,
-    trip_summary = trip_summary,
-    trip_metrics = trip_metrics,
-    individual_metrics = individual_metrics,
-    population_metrics = population_metrics,
-    centroids = centroids,
-    foraging_ranges = foraging_ranges
-  )
-}
+#
+# This file intentionally does NOT define functions that already live in their
+# own dedicated files, including:
+#   - clean_tracks()                -> clean_tracks.R
+#   - summarize_movement()          -> summarize_movement.R
+#   - analyze_fisheries_overlap()   -> analyze_fisheries_overlap.R
+#   - export_spatial_outputs()      -> export_spatial_outputs.R
+#
+# Keeping only one definition of each exported function prevents source-order
+# overwrites during development and inconsistent behavior during tests.
 
 
 #' Estimate Space Use
 #'
-#' Runs the space-use workflow from cleaned GPS data through kernel utilization
-#' distribution estimation, isopleth extraction, area calculation, and trip summaries.
+#' Runs the space-use workflow from a raw GPS file through cleaning, kernel
+#' utilization distribution estimation, isopleth extraction, area calculation,
+#' and trip summaries.
 #'
 #' @param file_path Character. Path to the raw GPS telemetry dataset.
 #' @param col_map Optional named character vector used for column standardization.
@@ -298,8 +39,44 @@ estimate_space_use <- function(file_path,
                                colony_coords = c(lon = 0, lat = 0),
                                kud_ref = "href",
                                density_levels = c(50, 95)) {
-  clean_data <- clean_tracks(
+  if (!is.character(file_path) || length(file_path) != 1 || is.na(file_path)) {
+    stop("`file_path` must be a single non-missing character string.", call. = FALSE)
+  }
+
+  if (!file.exists(file_path)) {
+    stop("File does not exist: ", file_path, call. = FALSE)
+  }
+
+  if (!is.numeric(max_speed) || length(max_speed) != 1 || is.na(max_speed) || max_speed <= 0) {
+    stop("`max_speed` must be a single positive number.", call. = FALSE)
+  }
+
+  if (!is.numeric(interval_minutes) ||
+      length(interval_minutes) != 1 ||
+      is.na(interval_minutes) ||
+      interval_minutes <= 0) {
+    stop("`interval_minutes` must be a single positive number.", call. = FALSE)
+  }
+
+  if (!is.numeric(colony_coords) || !all(c("lon", "lat") %in% names(colony_coords))) {
+    stop("`colony_coords` must be a named numeric vector with names `lon` and `lat`.", call. = FALSE)
+  }
+
+  if (!is.numeric(density_levels) || length(density_levels) < 1) {
+    stop("`density_levels` must be a numeric vector.", call. = FALSE)
+  }
+
+  if (any(is.na(density_levels)) || any(density_levels <= 0 | density_levels >= 100)) {
+    stop("`density_levels` must contain values greater than 0 and less than 100.", call. = FALSE)
+  }
+
+  raw_data <- read_gps_data(
     file_path = file_path,
+    format = "csv"
+  )
+
+  clean_data <- clean_tracks(
+    data = raw_data,
     col_map = col_map,
     max_speed = max_speed,
     speed_col = speed_col,
@@ -307,7 +84,7 @@ estimate_space_use <- function(file_path,
     interval_minutes = interval_minutes
   )
 
-  needed_regular_cols <- c("id", "datetime_regular", "Latitude", "Longitude")
+  needed_regular_cols <- c("datetime_regular", "lat", "lon")
   missing_regular_cols <- setdiff(needed_regular_cols, names(clean_data))
 
   if (length(missing_regular_cols) > 0) {
@@ -318,14 +95,30 @@ estimate_space_use <- function(file_path,
     )
   }
 
+  id_col <- if ("ID" %in% names(clean_data)) {
+    "ID"
+  } else if ("bird_id" %in% names(clean_data)) {
+    "bird_id"
+  } else if ("id" %in% names(clean_data)) {
+    "id"
+  } else if ("track_id" %in% names(clean_data)) {
+    "track_id"
+  } else {
+    stop("After cleaning, data is missing a bird ID column.", call. = FALSE)
+  }
+
   regular_data <- clean_data |>
-    dplyr::filter(!is.na(.data$Latitude), !is.na(.data$Longitude)) |>
+    dplyr::filter(!is.na(.data$lat), !is.na(.data$lon)) |>
     dplyr::rename(
-      track_id = .data$id,
+      track_id = dplyr::all_of(id_col),
       datetime_gmt = .data$datetime_regular,
-      latitude = .data$Latitude,
-      longitude = .data$Longitude
+      latitude = .data$lat,
+      longitude = .data$lon
     )
+
+  if (nrow(regular_data) == 0) {
+    stop("After cleaning, no rows with non-missing coordinates remain.", call. = FALSE)
+  }
 
   tracks_sf <- sf::st_as_sf(
     regular_data,
@@ -390,139 +183,6 @@ estimate_space_use <- function(file_path,
 }
 
 
-#' Analyze Fisheries Overlap
-#'
-#' Runs fisheries effort standardization, spatial joining, overlap summaries,
-#' optional gear-risk scoring, and optional diel overlap.
-#'
-#' @param track_data A data frame or `sf` object of seabird track points.
-#' @param fisheries_data A data frame or `sf` object of fisheries effort data.
-#' @param gear_weights Optional named numeric vector or data frame of gear weights.
-#' @param track_id_col Character. Track ID column.
-#' @param track_lon_col Character. Track longitude column if not `sf`.
-#' @param track_lat_col Character. Track latitude column if not `sf`.
-#' @param fisheries_lon_col Character. Fisheries longitude column if not `sf`.
-#' @param fisheries_lat_col Character. Fisheries latitude column if not `sf`.
-#' @param effort_col Character. Fisheries effort column.
-#' @param gear_col Character. Gear column.
-#' @param cell_id_col Optional character. Fisheries grid/cell ID column.
-#' @param join_type Character. Spatial join type.
-#' @param crs CRS for non-sf inputs.
-#' @param calculate_risk Logical. If `TRUE`, calculate gear-weighted risk.
-#' @param calculate_diel Logical. If `TRUE`, calculate diel overlap.
-#'
-#' @return A named list of fisheries overlap outputs.
-#' @export
-analyze_fisheries_overlap <- function(track_data,
-                                      fisheries_data,
-                                      gear_weights = NULL,
-                                      track_id_col = "track_id",
-                                      track_lon_col = "longitude",
-                                      track_lat_col = "latitude",
-                                      fisheries_lon_col = "longitude",
-                                      fisheries_lat_col = "latitude",
-                                      effort_col = "effort",
-                                      gear_col = "gear",
-                                      cell_id_col = NULL,
-                                      join_type = c("intersects", "within", "nearest"),
-                                      crs = 4326,
-                                      calculate_risk = TRUE,
-                                      calculate_diel = FALSE) {
-  join_type <- match.arg(join_type)
-
-  if (calculate_risk && is.null(gear_weights)) {
-    stop("`gear_weights` must be provided when `calculate_risk = TRUE`.",
-         call. = FALSE)
-  }
-
-  fisheries_clean <- standardize_fishing_effort(
-    fisheries_data = fisheries_data,
-    effort_col = effort_col,
-    gear_col = gear_col,
-    standardize_effort = TRUE,
-    log_transform = FALSE
-  )
-
-  track_sf <- if (inherits(track_data, "sf")) {
-    track_data
-  } else {
-    sf::st_as_sf(
-      track_data,
-      coords = c(track_lon_col, track_lat_col),
-      crs = crs,
-      remove = FALSE
-    )
-  }
-
-  fisheries_sf <- if (inherits(fisheries_clean, "sf")) {
-    fisheries_clean
-  } else {
-    as_fisheries_sf(
-      data = fisheries_clean,
-      lon_col = fisheries_lon_col,
-      lat_col = fisheries_lat_col,
-      crs = crs
-    )
-  }
-
-  if (sf::st_crs(track_sf) != sf::st_crs(fisheries_sf)) {
-    fisheries_sf <- sf::st_transform(fisheries_sf, sf::st_crs(track_sf))
-  }
-
-  joined_overlap <- join_tracks_to_fishing_grid(
-    track_data = track_sf,
-    fisheries_data = fisheries_sf,
-    join_type = join_type
-  )
-
-  overlap_metrics <- calc_fisheries_overlap(
-    joined_data = joined_overlap,
-    track_id_col = track_id_col,
-    effort_col = "effort_std",
-    gear_col = gear_col,
-    cell_id_col = cell_id_col
-  )
-
-  gear_summary <- summarize_overlap_by_gear(
-    overlap_data = overlap_metrics,
-    gear_col = gear_col,
-    overlap_col = "total_overlap"
-  )
-
-  risk_results <- NULL
-
-  if (calculate_risk) {
-    risk_results <- calc_risk_index(
-      overlap_data = overlap_metrics,
-      overlap_col = "total_overlap",
-      gear_col = gear_col,
-      gear_weights = gear_weights,
-      scale_01 = TRUE
-    )
-  }
-
-  diel_overlap <- NULL
-
-  if (calculate_diel) {
-    diel_overlap <- calc_diel_overlap(
-      joined_data = joined_overlap,
-      track_id_col = track_id_col
-    )
-  }
-
-  list(
-    fisheries_clean = fisheries_clean,
-    track_sf = track_sf,
-    fisheries_sf = fisheries_sf,
-    joined_overlap = joined_overlap,
-    overlap_metrics = overlap_metrics,
-    gear_summary = gear_summary,
-    risk_results = risk_results,
-    diel_overlap = diel_overlap
-  )
-}
-
-
 #' Analyze Jurisdiction and Conservation Overlap
 #'
 #' Runs jurisdiction, MPA, priority-area, transboundary, and policy exposure
@@ -539,6 +199,22 @@ analyze_jurisdiction_overlap <- function(track_data,
                                          eez_layer,
                                          mpa_layer = NULL,
                                          priority_layer = NULL) {
+  if (!inherits(track_data, "sf")) {
+    stop("`track_data` must be an sf object.", call. = FALSE)
+  }
+
+  if (!inherits(eez_layer, "sf")) {
+    stop("`eez_layer` must be an sf object.", call. = FALSE)
+  }
+
+  if (!is.null(mpa_layer) && !inherits(mpa_layer, "sf")) {
+    stop("`mpa_layer` must be an sf object or NULL.", call. = FALSE)
+  }
+
+  if (!is.null(priority_layer) && !inherits(priority_layer, "sf")) {
+    stop("`priority_layer` must be an sf object or NULL.", call. = FALSE)
+  }
+
   eez_tracks <- overlay_eez_abnj(
     track_data = track_data,
     eez_layer = eez_layer
@@ -592,7 +268,8 @@ analyze_jurisdiction_overlap <- function(track_data,
 
 #' Plot Tracking Results
 #'
-#' Creates a set of common plots from track, trip, fisheries, and space-use outputs.
+#' Creates a set of common plots from track, trip, fisheries, and space-use
+#' outputs.
 #'
 #' @param track_data Optional track data frame.
 #' @param trip_data Optional trip-segmented data frame.
@@ -607,6 +284,11 @@ plot_tracking_results <- function(track_data = NULL,
                                   fisheries_grid = NULL,
                                   isopleth_polygons = NULL,
                                   colony_coords = NULL) {
+  if (!is.null(colony_coords) &&
+      (!is.numeric(colony_coords) || !all(c("lon", "lat") %in% names(colony_coords)))) {
+    stop("`colony_coords` must be a named numeric vector with names `lon` and `lat`.", call. = FALSE)
+  }
+
   plots <- list()
 
   if (!is.null(track_data)) {
@@ -643,115 +325,73 @@ plot_tracking_results <- function(track_data = NULL,
 }
 
 
-#' Export Spatial Outputs
+#' Export GIS Layers
 #'
-#' Exports spatial layers and policy tables from a named results list.
+#' Writes a spatial object to disk.
 #'
-#' @param results Named list containing spatial and tabular outputs.
-#' @param out_dir Character. Output directory.
-#' @param gis_format Character. GIS output format.
-#' @param table_format Character. Table output format.
-#' @param overwrite Logical. Overwrite existing files.
-#' @param verbose Logical. Print progress messages.
+#' @param layer A spatial object, usually an `sf` object.
+#' @param file_path Character output path.
+#' @param ... Additional arguments passed to spatial writers.
 #'
-#' @return Invisibly returns written file paths.
+#' @return Invisibly returns `file_path`.
 #' @export
-export_spatial_outputs <- function(results,
-                                   out_dir = "outputs",
-                                   gis_format = c("gpkg", "shp", "geojson"),
-                                   table_format = c("csv", "xlsx"),
-                                   overwrite = FALSE,
-                                   verbose = TRUE) {
-  gis_format <- match.arg(gis_format)
-  table_format <- match.arg(table_format)
-
-  .msg <- function(...) {
-    if (verbose) {
-      message(...)
-    }
+export_gis_layers <- function(layer, file_path, ...) {
+  if (!is.character(file_path) || length(file_path) != 1 || is.na(file_path)) {
+    stop("`file_path` must be a single non-missing character string.", call. = FALSE)
   }
 
-  if (!is.list(results)) {
-    stop("`results` must be a named list.", call. = FALSE)
+  if (inherits(layer, "sf")) {
+    sf::st_write(
+      layer,
+      dsn = file_path,
+      quiet = TRUE,
+      delete_dsn = TRUE,
+      ...
+    )
+
+    return(invisible(file_path))
   }
 
-  if (!dir.exists(out_dir)) {
-    dir.create(out_dir, recursive = TRUE)
-  }
+  stop("`layer` must be a recognised spatial object.", call. = FALSE)
+}
 
-  written <- character(0)
 
-  spatial_keys <- c(
-    "tracks",
-    "cleaned_tracks",
-    "core_area",
-    "home_range",
-    "ud_polygons",
-    "isopleth_polygons",
-    "overlap_grid",
-    "foraging_range"
-  )
-
-  for (key in intersect(spatial_keys, names(results))) {
-    layer <- results[[key]]
-
-    if (is.null(layer) || !inherits(layer, c("sf", "sfc", "RasterLayer", "SpatRaster"))) {
-      next
-    }
-
-    out_path <- file.path(out_dir, paste0(key, ".", gis_format))
-
-    if (file.exists(out_path) && !overwrite) {
-      warning("File already exists and `overwrite = FALSE`; skipping: ", out_path,
-              call. = FALSE)
-      next
-    }
-
-    .msg("Writing spatial layer: ", out_path)
-
+#' Export Utilization Distribution Polygons
+#'
+#' Writes utilization distribution polygons to disk.
+#'
+#' @param ud_polys An `sf` object, or a list containing UD polygon objects.
+#' @param file_path Character output path.
+#' @param ... Additional arguments passed to spatial writers.
+#'
+#' @return Invisibly returns `file_path`.
+#' @export
+export_ud_polygons <- function(ud_polys, file_path, ...) {
+  if (inherits(ud_polys, "sf")) {
     export_gis_layers(
-      spatial_object = layer,
-      file_path = out_path
+      layer = ud_polys,
+      file_path = file_path,
+      ...
     )
 
-    written <- c(written, stats::setNames(out_path, key))
+    return(invisible(file_path))
   }
 
-  table_keys <- c(
-    "trip_summaries",
-    "individual_metrics",
-    "population_metrics",
-    "jurisdiction_summary",
-    "policy_summary",
-    "gear_summary",
-    "overlap_metrics"
-  )
+  if (is.list(ud_polys)) {
+    sf_items <- ud_polys[vapply(ud_polys, inherits, logical(1), what = "sf")]
 
-  for (key in intersect(table_keys, names(results))) {
-    tbl <- results[[key]]
+    if (length(sf_items) > 0) {
+      combined <- do.call(rbind, sf_items)
 
-    if (is.null(tbl) || !is.data.frame(tbl)) {
-      next
+      export_gis_layers(
+        layer = combined,
+        file_path = file_path,
+        ...
+      )
+
+      return(invisible(file_path))
     }
-
-    out_path <- file.path(out_dir, paste0(key, ".", table_format))
-
-    if (file.exists(out_path) && !overwrite) {
-      warning("File already exists and `overwrite = FALSE`; skipping: ", out_path,
-              call. = FALSE)
-      next
-    }
-
-    .msg("Writing table: ", out_path)
-
-    export_policy_summary_tables(
-      summary_data = tbl,
-      file_path = out_path,
-      overwrite = overwrite
-    )
-
-    written <- c(written, stats::setNames(out_path, key))
   }
 
-  invisible(written)
+  stop("`ud_polys` must be an sf object or a list containing sf objects.", call. = FALSE)
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/trip_utils.R
 \name{segment_trips}
 \alias{segment_trips}
-\title{Segment Tracking Series into Foraging Trips Away From Colony}
+\title{Segment Tracking Series into Foraging Trips}
 \usage{
 segment_trips(
   track,
@@ -13,20 +13,24 @@ segment_trips(
 )
 }
 \arguments{
-\item{track}{A data frame or tibble containing colony flagged telemetry points.}
+\item{track}{A data frame or tibble containing colony-flagged tracking points.}
 
-\item{bird_id_col}{Character string. Unique track grouping column name. Default: `"track_id"`.}
+\item{bird_id_col}{Character. Individual or track ID column.
+Default is `"track_id"`.}
 
-\item{datetime_col}{Character string. Chronological POSIXct standard datetime field. Default: `"datetime_gmt"`.}
+\item{datetime_col}{Character. Datetime column.
+Default is `"datetime_gmt"`.}
 
-\item{colony_flag_col}{Character string. Logical colony attendance status vector name. Default: `"at_colony"`.}
+\item{colony_flag_col}{Character. Logical colony-attendance column.
+Default is `"at_colony"`.}
 
-\item{trip_id_col}{Character string. Unique index output column name assigned to valid trips. Default: `"trip_id"`.}
+\item{trip_id_col}{Character. Output trip ID column.
+Default is `"trip_id"`.}
 }
 \value{
-An ordered data frame appended with calculated discrete sequential trip identifiers.
+An ordered data frame with a trip ID column.
 }
 \description{
-Assigns sequential trip indices to chronological strings of points captured outside of 
-flagged breeding colony boundary zones. Attendance tracks evaluate as NA.
+Assigns sequential trip IDs to chronological sequences of points away from
+the colony. Points at the colony receive `NA` for the trip ID.
 }

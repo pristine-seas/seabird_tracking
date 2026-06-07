@@ -2,39 +2,36 @@
 % Please edit documentation in R/utils_schema.R
 \name{validate_gps_data}
 \alias{validate_gps_data}
-\title{Validate GPS Track Data}
+\title{Validate GPS Tracking Data}
 \usage{
-validate_gps_data(data, strict = FALSE, allow_na = FALSE)
+validate_gps_data(
+  data,
+  strict = TRUE,
+  id_col = NULL,
+  datetime_col = NULL,
+  lon_col = NULL,
+  lat_col = NULL
+)
 }
 \arguments{
-\item{data}{A data frame or tibble (raw or standardized track data).}
+\item{data}{A data frame, tibble, or sf object.}
 
-\item{strict}{Logical. If TRUE, treat warnings as errors. Default FALSE.}
+\item{strict}{Logical. If TRUE, validation problems error. If FALSE, problems
+that can be tolerated are warnings.}
 
-\item{allow_na}{Logical. If TRUE, allow NA values in coordinates/timestamps.
-Default FALSE.}
+\item{id_col}{Optional ID column name.}
+
+\item{datetime_col}{Optional datetime column name.}
+
+\item{lon_col}{Optional longitude column name.}
+
+\item{lat_col}{Optional latitude column name.}
 }
 \value{
-A list with class "validated_gps_data" containing:
-  - \code{data}:     The validated data frame (if no critical errors).
-  - \code{valid}:    Logical indicating whether validation passed.
-  - \code{errors}:   Character vector of critical errors (if any).
-  - \code{warnings}: Character vector of warnings (if any).
+The input object marked with class `validated_gps_data`.
 }
 \description{
-Performs comprehensive validation on raw or standardized track data,
-checking required columns, coordinate ranges, timestamp integrity,
-duplicates, and structural issues. Returns validated data or a
-structured list of errors and warnings.
-}
-\examples{
-df <- data.frame(
-  track_id = c(1, 1, 2),
-  timestamp = as.POSIXct(c("2024-01-01 10:00:00", "2024-01-01 10:01:00",
-                           "2024-01-01 11:00:00"), tz = "UTC"),
-  latitude = c(37.7749, 37.7750, 37.7800),
-  longitude = c(-122.4194, -122.4195, -122.4100)
-)
-result <- validate_gps_data(df)
-print(result)
+Checks that a GPS tracking table contains the required identity, datetime,
+longitude, and latitude fields and that those fields can be safely used by
+downstream package functions.
 }

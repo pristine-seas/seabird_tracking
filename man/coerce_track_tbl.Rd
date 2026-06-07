@@ -2,47 +2,23 @@
 % Please edit documentation in R/utils_schema.R
 \name{coerce_track_tbl}
 \alias{coerce_track_tbl}
-\title{Coerce Data into Standard Track Table Format}
+\title{Coerce Tracking Data to a Standard Track Table}
 \usage{
 coerce_track_tbl(data, col_map = NULL, validate = TRUE, as_tibble = TRUE)
 }
 \arguments{
-\item{data}{A data frame or tibble to coerce.}
+\item{data}{A data frame or tibble.}
 
-\item{col_map}{Optional named list/vector mapping input column names to
-standard names. E.g. \code{list(time = "timestamp", lat = "latitude")}.
-Defaults to common abbreviations.}
+\item{col_map}{Optional list or named character vector mapping source names
+to standard names.}
 
-\item{validate}{Logical. If TRUE, run \code{validate_gps_data()} on the
-result. Default TRUE.}
+\item{validate}{Logical. If TRUE, run `validate_gps_data()`.}
 
-\item{as_tibble}{Logical. If TRUE, return as tibble; if FALSE, as data.frame.
-Default TRUE.}
+\item{as_tibble}{Logical. If TRUE, return a tibble when tibble is installed.}
 }
 \value{
-A coerced data frame or tibble in standard track format (or
-        a \code{validated_gps_data} object if \code{validate = TRUE}).
+A standardized data frame or tibble.
 }
 \description{
-Converts a data frame or tibble into the package's standard internal
-track-table format. Renames columns as needed, orders columns consistently,
-and optionally validates the result.
-}
-\details{
-The standard format is:
-  \code{track_id, timestamp, latitude, longitude, [optional columns]}
-
-Column mapping is flexible: if the input has columns like \code{id}, \code{time},
-\code{lat}, \code{lon}, they will be renamed to the standard names.
-}
-\examples{
-df <- data.frame(
-  id = c(1, 1, 2),
-  time = as.POSIXct(c("2024-01-01 10:00:00", "2024-01-01 10:01:00",
-                      "2024-01-01 11:00:00"), tz = "UTC"),
-  lat = c(37.7749, 37.7750, 37.7800),
-  lon = c(-122.4194, -122.4195, -122.4100)
-)
-std <- coerce_track_tbl(df, validate = FALSE)
-head(std)
+Coerce Tracking Data to a Standard Track Table
 }

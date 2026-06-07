@@ -2,7 +2,7 @@
 % Please edit documentation in R/top_level_wrappers.R
 \name{estimate_space_use}
 \alias{estimate_space_use}
-\title{Top-Level Space-Use Analysis Wrapper}
+\title{Estimate Space Use}
 \usage{
 estimate_space_use(
   file_path,
@@ -18,44 +18,25 @@ estimate_space_use(
 \arguments{
 \item{file_path}{Character. Path to the raw GPS telemetry dataset.}
 
-\item{col_map}{Optional named character vector used for column
-standardization.}
+\item{col_map}{Optional named character vector used for column standardization.}
 
-\item{max_speed}{Numeric. Maximum allowed speed for filtering outlier fixes.}
+\item{max_speed}{Numeric. Maximum allowed speed for outlier filtering.}
 
-\item{speed_col}{Character. Name of the speed column.}
+\item{speed_col}{Character. Speed column.}
 
-\item{interval_minutes}{Numeric. Time interval, in minutes, used to
-regularize tracks.}
+\item{interval_minutes}{Numeric. Track regularization interval.}
 
-\item{colony_coords}{Named numeric vector with `lon` and `lat` giving the
-breeding colony location.}
+\item{colony_coords}{Named numeric vector with `lon` and `lat`.}
 
-\item{kud_ref}{Character or numeric. Kernel smoothing parameter passed to
-`calculate_kud()`. Common options are `"href"` and `"LSCV"`.}
+\item{kud_ref}{Character or numeric. Kernel bandwidth argument.}
 
-\item{density_levels}{Numeric vector. Utilization distribution percentage
-thresholds used to extract isopleths, such as `c(50, 95)`.}
+\item{density_levels}{Numeric vector of isopleth levels.}
 }
 \value{
-A named list containing:
-\describe{
-  \item{cleaned_tracks}{An `sf` object containing filtered and regularized
-  tracking points with trip statistics.}
-  \item{kud_estimates}{A kernel utilization distribution object produced by
-  `calculate_kud()`.}
-  \item{isopleth_polygons}{An `sf` object containing utilization distribution
-  contour polygons with area metrics.}
-  \item{trip_summaries}{A data frame of trip-level distance, duration, and
-  colony-distance summaries.}
-}
+A named list of space-use outputs.
 }
 \description{
-Runs the main space-use workflow from raw GPS data import through data
-cleaning, regularization, kernel utilization distribution estimation,
-isopleth extraction, area calculation, and trip-level movement summaries.
-}
-\details{
-This function is intended as a high-level convenience wrapper that combines
-lower-level Shearwater package functions into one reproducible workflow.
+Runs the space-use workflow from a raw GPS file through cleaning, kernel
+utilization distribution estimation, isopleth extraction, area calculation,
+and trip summaries.
 }

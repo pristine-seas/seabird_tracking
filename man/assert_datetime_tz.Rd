@@ -26,5 +26,5 @@ df <- data.frame(
 assert_datetime_tz(df, "ts")    # passes
 
 df_naive <- data.frame(ts = as.POSIXct("2024-01-01 12:00:00"))
-assert_datetime_tz(df_naive, "ts")  # errors – no explicit tz
+try(assert_datetime_tz(df_naive, "ts"))  # expected to error
 }

@@ -164,100 +164,94 @@ filter_on_land_or_invalid_points <- function(
     return(df)
   }
 }
-
 #' Flag low-quality GPS fixes
 #'
-#' Adds QA flag fields for questionable locations based on multiple independent
-#' quality criteria. Does not remove any rows — flags are additive columns so
-#' downstream users can apply their own filtering thresholds.
+#' Adds logical QA columns for high speed, high distance, invalid fix type, and
+#' low essential-quality values when those checks are available.
 #'
-#' Designed for raw GPS tracking data with separate Date and Time columns,
-#' a numeric Type code, Speed, Distance, and a numeric Essential quality field.
+#' @param df A data frame.
+#' @param speed_col Speed column.
+#' @param max_speed Optional speed threshold.
+#' @param distance_col Distance column.
+#' @param max_distance Optional distance threshold.
+#' @param fix_type_col Fix type column.
+#' @param valid_fix_types Valid fix-type values.
+#' @param essential_col Essential-quality column.
+#' @param valid_essential_values Valid essential values.
+#' @param prefix Prefix for generated QA columns.
 #'
-#' @param df A data.frame containing tracking data
-#' @param speed_col Column name for recorded speed (NULL to skip)
-#' @param max_speed Maximum biologically plausible speed (same units as column)
-#' @param distance_col Column name for step distance (NULL to skip)
-#' @param max_distance Maximum plausible step distance (same units as column)
-#' @param fix_type_col Column name for numeric fix type code, e.g. "Type" (NULL to skip).
-#'   Inspect unique values in your Type column to determine which are valid before setting
-#'   valid_fix_types.
-#' @param valid_fix_types Numeric or character vector of acceptable Type code values.
-#'   Defaults to 0 (standard fix). Set to NULL to skip this check.
-#' @param essential_col Column name for device-native quality indicator, e.g. "Essential"
-#'   (NULL to skip). Rows where value is not in valid_essential_values are flagged.
-#' @param valid_essential_values Vector of values considered good quality. Defaults to 1.
-#' @param prefix Prefix for all appended flag column names (default "..qa_")
-#'
-#' @return The input data.frame with additional logical QA flag columns:
-#'   \itemize{
-#'     \item \code{<prefix>high_speed} – speed exceeds \code{max_speed}
-#'     \item \code{<prefix>high_distance} – distance exceeds \code{max_distance}
-#'     \item \code{<prefix>invalid_type} – Type code not in \code{valid_fix_types}
-#'     \item \code{<prefix>low_essential} – Essential not in \code{valid_essential_values}
-#'     \item \code{<prefix>any} – TRUE if any individual flag is TRUE
-#'   }
+#' @return The input data frame with QA flag columns added.
 #' @export
-flag_low_quality_fixes <- function(
-    df,
-    speed_col              = "Speed",
-    max_speed              = NULL,
-    distance_col           = "Distance",
-    max_distance           = NULL,
-    fix_type_col           = "Type",
-    valid_fix_types        = 0,
-    essential_col          = "Essential",
-    valid_essential_values = 1,
-    prefix                 = "..qa_"
-) {
+flag_low_quality_fixes <- function(df,
+                                   speed_col = "Speed",
+                                   max_speed = NULL,
+                                   distance_col = "Distance",
+                                   max_distance = NULL,
+                                   fix_type_col = "Type",
+                                   valid_fix_types = 0,
+                                   essential_col = "Essential",
+                                   valid_essential_values = 1,
+                                   prefix = "..qa_") {
+  if (!is.data.frame(df)) {
+    stop("`df` must be a data frame.", call. = FALSE)
+  }
+
+  if (!is.character(prefix) ||
+      length(prefix) != 1 ||
+      is.na(prefix)) {
+    stop("`prefix` must be a single character string.", call. = FALSE)
+  }
 
   flags <- list()
+  skipped <- character(0)
 
-  # ---- 1. Speed check ----
   if (!is.null(speed_col) && !is.null(max_speed)) {
     if (!speed_col %in% names(df)) {
-      warning(paste("Speed column not found, skipping:", speed_col))
+      skipped <- c(skipped, paste0("Speed column not found, skipping: ", speed_col))
     } else {
       speed <- suppressWarnings(as.numeric(df[[speed_col]]))
       flags[["high_speed"]] <- is.na(speed) | speed > max_speed
     }
   }
 
-  # ---- 2. Distance check ----
   if (!is.null(distance_col) && !is.null(max_distance)) {
     if (!distance_col %in% names(df)) {
-      warning(paste("Distance column not found, skipping:", distance_col))
+      skipped <- c(skipped, paste0("Distance column not found, skipping: ", distance_col))
     } else {
       dist <- suppressWarnings(as.numeric(df[[distance_col]]))
       flags[["high_distance"]] <- is.na(dist) | dist > max_distance
     }
   }
 
-  # ---- 3. Fix type code check ----
   if (!is.null(fix_type_col) && !is.null(valid_fix_types)) {
     if (!fix_type_col %in% names(df)) {
-      warning(paste("Fix type column not found, skipping:", fix_type_col))
+      skipped <- c(skipped, paste0("Fix type column not found, skipping: ", fix_type_col))
     } else {
-      type_vals  <- as.character(df[[fix_type_col]])
+      type_vals <- as.character(df[[fix_type_col]])
       valid_vals <- as.character(valid_fix_types)
       flags[["invalid_type"]] <- !type_vals %in% valid_vals
     }
   }
 
-  # ---- 4. Essential quality flag check ----
   if (!is.null(essential_col) && !is.null(valid_essential_values)) {
     if (!essential_col %in% names(df)) {
-      warning(paste("Essential column not found, skipping:", essential_col))
+      skipped <- c(skipped, paste0("Essential column not found, skipping: ", essential_col))
     } else {
-      ess_vals  <- as.character(df[[essential_col]])
+      ess_vals <- as.character(df[[essential_col]])
       valid_ess <- as.character(valid_essential_values)
       flags[["low_essential"]] <- is.na(df[[essential_col]]) | !ess_vals %in% valid_ess
     }
   }
 
-  # ---- 5. Append flag columns ----
+  if (length(skipped) > 0) {
+    warning(paste(skipped, collapse = "; "), call. = FALSE)
+  }
+
   if (length(flags) == 0) {
-    warning("No QA checks were applied — verify column names and that threshold arguments are non-NULL.")
+    warning(
+      "No QA checks were applied - verify column names and that threshold arguments are non-NULL.",
+      call. = FALSE
+    )
     return(df)
   }
 
@@ -265,9 +259,8 @@ flag_low_quality_fixes <- function(
     df[[paste0(prefix, flag_name)]] <- flags[[flag_name]]
   }
 
-  # ---- 6. Composite any-flag column ----
   flag_matrix <- do.call(cbind, flags)
   df[[paste0(prefix, "any")]] <- rowSums(flag_matrix, na.rm = TRUE) > 0
 
-  return(df)
+  df
 }

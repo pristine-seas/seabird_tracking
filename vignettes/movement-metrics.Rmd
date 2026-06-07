@@ -42,11 +42,17 @@ inst/extdata/example_wtsh_gps.csv
 The raw spreadsheet has columns such as `Date`, `Time`, `Latitude`, `Longitude`, `Altitude`, `Speed`, `Course`, `Type`, `Distance`, and `Essential`.
 
 ```{r load-example-data}
-gps_raw <- read.csv(
-  system.file("extdata", "example_wtsh_gps.csv", package = "Shearwater"),
-  stringsAsFactors = FALSE
+gps_path <- system.file(
+  "extdata",
+  "example_wtsh_data.csv",
+  package = "Shearwater",
+  mustWork = TRUE
 )
 
+gps_raw <- read.csv(
+  gps_path,
+  stringsAsFactors = FALSE
+)
 head(gps_raw)
 ```
 

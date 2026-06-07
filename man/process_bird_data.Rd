@@ -2,20 +2,28 @@
 % Please edit documentation in R/Filtering_Functions.R
 \name{process_bird_data}
 \alias{process_bird_data}
-\title{Bird Filtering Pipeline}
+\title{Process Bird Tracking Data}
 \usage{
 process_bird_data(data, start_dates_vec, id_col)
 }
 \arguments{
-\item{data}{Input dataframe (expects Tag, datetime, type, correct_step_distance)}
+\item{data}{A data frame containing bird tracking data. Must include columns
+for bird ID, `datetime`, `type`, and `correct_step_distance`.}
 
-\item{start_dates_vec}{A character vector of fledge dates}
+\item{start_dates_vec}{A character vector of fledge or start dates. These
+should correspond to the unique bird IDs in `data`.}
 
-\item{id_col}{The name of your ID column (unquoted)}
+\item{id_col}{The bird ID column, supplied unquoted.}
 }
 \value{
-A filtered dataframe excluding irrelevant dates, calculated velocities, equinoxes, extreme latitudes, and land-proximate points
+A filtered data frame with parsed date columns and calculated
+  velocities.
 }
 \description{
-Bird Filtering Pipeline
+Filters bird tracking data by fledge date and movement velocity.
+}
+\details{
+This function maps each bird ID to a start date, removes records before that
+start date, parses datetime values, calculates velocities from step distance,
+and removes records with unrealistic movement distances or speeds.
 }

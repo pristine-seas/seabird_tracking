@@ -41,23 +41,52 @@ Standard column names used throughout the package:
 ## 1  Load and standardise the example data
 
 ```{r load-data}
-raw <- read_gps_data(
-  system.file("extdata", "wtsh_example.csv", package = "Shearwater")
+gps_path <- system.file(
+  "extdata",
+  "example_wtsh_data.csv",
+  package = "Shearwater",
+  mustWork = TRUE
 )
 
-tracks <- standardize_gps_columns(
-  raw,
-  col_map = list(
-    track_id     = "ID",
-    datetime_gmt = "datetime_gmt",
-    longitude    = "Longitude",
-    latitude     = "Latitude",
-    at_colony    = "at_colony"
+raw <- read.csv(
+  gps_path,
+  stringsAsFactors = FALSE
+)
+
+tracks <- raw %>%
+  mutate(
+    track_id = "bird_001",
+    datetime_gmt = as.POSIXct(
+      paste(Date, Time),
+      format = "%m/%d/%Y %H:%M:%S",
+      tz = "UTC"
+    ),
+    longitude = Longitude,
+    latitude = Latitude
+  ) %>%
+  arrange(track_id, datetime_gmt)
+
+# Colony location — use first GPS point for this example
+colony <- c(
+  lon = tracks$longitude[1],
+  lat = tracks$latitude[1]
+)
+
+tracks <- tracks %>%
+  mutate(
+    dist_to_colony_m = geosphere::distHaversine(
+      cbind(longitude, latitude),
+      matrix(
+        c(colony["lon"], colony["lat"]),
+        nrow = n(),
+        ncol = 2,
+        byrow = TRUE
+      )
+    ),
+    at_colony = dist_to_colony_m <= 75
   )
-)
 
-# Colony location — Kaena Point, Oahu
-colony <- c(lon = -158.276, lat = 21.574)
+head(tracks)
 ```
 
 ---
