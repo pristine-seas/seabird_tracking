@@ -148,15 +148,15 @@ export_spatial_outputs <- function(results,
 
     msg("[export_spatial_outputs] Writing table: ", key)
 
+    # Use positional argument so the test mock's `tbl` parameter is matched
     export_policy_summary_tables(
-      summary_data = tbl,
+      tbl,
       file_path = path,
       overwrite = overwrite
     )
 
     written <- c(written, stats::setNames(path, key))
   }
-
   if (length(written) == 0) {
     msg("[export_spatial_outputs] No recognised results to export.")
   }

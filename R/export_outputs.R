@@ -72,7 +72,7 @@ summarize_policy_exposure <- function(jurisdiction_summary,
     )
 
   # MPA exposure.
-  mpa_tbl <- .drop_geometry_if_sf(mpa_track)
+  mpa_tbl <- drop_geometry_if_sf(mpa_track)
   assert_required_cols(mpa_tbl, c("bird_id", "Date", "Time", "in_mpa"))
 
   mpa_tbl <- .add_step_hours(
@@ -91,7 +91,7 @@ summarize_policy_exposure <- function(jurisdiction_summary,
     )
 
   # Priority-area exposure.
-  pri_tbl <- .drop_geometry_if_sf(priority_track)
+  pri_tbl <- drop_geometry_if_sf(priority_track)
   assert_required_cols(
     pri_tbl,
     c("bird_id", "Date", "Time", "in_priority_area")
@@ -253,7 +253,7 @@ export_policy_summary_tables <- function(summary_data,
 
 
 # Internal helper: drop geometry only when input is sf.
-.drop_geometry_if_sf <- function(x) {
+drop_geometry_if_sf <- function(x) {
   if (inherits(x, "sf")) {
     return(sf::st_drop_geometry(x))
   }

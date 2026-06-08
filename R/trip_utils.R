@@ -232,19 +232,17 @@ classify_trip_phase <- function(track,
 #' calculated from the track coordinates.
 #'
 #' @param track A data frame or tibble containing tracking points.
-#' @param datetime_col Character. Datetime column.
-#'   Default is `"datetime_gmt"`.
-#' @param lat_col Character. Latitude column. Default is `"latitude"`.
-#' @param lon_col Character. Longitude column. Default is `"longitude"`.
+#' @param datetime_col Character. Datetime column. Default is \code{"datetime_gmt"}.
+#' @param lat_col Character. Latitude column. Default is \code{"latitude"}.
+#' @param lon_col Character. Longitude column. Default is \code{"longitude"}.
 #' @param timezone Character. Time zone used for solar calculations.
-#'   Default is `"UTC"`.
+#'   Default is \code{"UTC"}.
 #' @param output_col Character. Output diel-period column.
-#'   Default is `"diel_period"`.
+#'   Default is \code{"diel_period"}.
 #' @param twilight_buffer_mins Numeric. Minutes around sunrise and sunset to
-#'   label as dawn or dusk. Default is `45`.
+#'   label as dawn or dusk. Default is \code{45}.
 #'
-#' @return A data frame with a diel-period column.
-#'
+#' @return A data frame with a diel-period column added.
 #' @export
 label_day_night_period <- function(track,
                                    datetime_col = "datetime_gmt",
@@ -256,18 +254,14 @@ label_day_night_period <- function(track,
   if (!is.data.frame(track)) {
     stop("`track` must be a data frame or tibble.", call. = FALSE)
   }
-
   needed <- c(datetime_col, lat_col, lon_col)
   missing_cols <- setdiff(needed, names(track))
-
   if (length(missing_cols) > 0) {
     stop("Missing: ", paste(missing_cols, collapse = ", "), call. = FALSE)
   }
-
   dates_only <- as.Date(
     lubridate::with_tz(track[[datetime_col]], tzone = timezone)
   )
-
   sun_tbl <- suncalc::getSunlightTimes(
     date = unique(dates_only),
     lat = mean(track[[lat_col]], na.rm = TRUE),
@@ -277,9 +271,9 @@ label_day_night_period <- function(track,
   ) |>
     dplyr::mutate(
       dawn_start = .data$sunrise - lubridate::minutes(twilight_buffer_mins),
-      dawn_end = .data$sunrise + lubridate::minutes(twilight_buffer_mins),
-      dusk_start = .data$sunset - lubridate::minutes(twilight_buffer_mins),
-      dusk_end = .data$sunset + lubridate::minutes(twilight_buffer_mins)
+      dawn_end   = .data$sunrise + lubridate::minutes(twilight_buffer_mins),
+      dusk_start = .data$sunset  - lubridate::minutes(twilight_buffer_mins),
+      dusk_end   = .data$sunset  + lubridate::minutes(twilight_buffer_mins)
     ) |>
     dplyr::select(
       .data$date,
@@ -288,7 +282,6 @@ label_day_night_period <- function(track,
       .data$dusk_start,
       .data$dusk_end
     )
-
   track |>
     dplyr::mutate(
       date_only = as.Date(

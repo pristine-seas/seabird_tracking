@@ -49,42 +49,33 @@ assert_required_cols <- function(data, cols) {
 #' matches an expected CRS. Useful for catching mismatched projections before
 #' spatial operations.
 #'
-#' @param x            An `sf` or `Spatial*` object.
+#' @param x An \code{sf} or \code{Spatial*} object.
 #' @param expected_crs Optional. A CRS to compare against. Accepts anything
-#'                     that \code{sf::st_crs()} can parse: an EPSG integer
-#'                     (e.g. \code{4326}), a PROJ string, or an \code{crs}
-#'                     object.
+#'   that \code{sf::st_crs()} can parse: an EPSG integer (e.g. \code{4326}),
+#'   a PROJ string, or a \code{crs} object.
 #'
-#' @return Invisibly returns TRUE if all checks pass.
+#' @return Invisibly returns \code{TRUE} if all checks pass.
 #' @export
 #'
 #' @examples
 #' library(sf)
-#'
 #' pt <- st_sf(geometry = st_sfc(st_point(c(0, 0)), crs = 4326))
-#'
-#' assert_crs(pt)       # passes: CRS is set
-#' assert_crs(pt, 4326) # passes: CRS matches
-#'
+#' assert_crs(pt)
+#' assert_crs(pt, 4326)
 #' \dontrun{
-#' assert_crs(pt, 32632) # errors: CRS mismatch
+#' assert_crs(pt, 32632)
 #' }
 assert_crs <- function(x, expected_crs = NULL) {
   if (!requireNamespace("sf", quietly = TRUE)) {
     stop("Package 'sf' is required for assert_crs().", call. = FALSE)
   }
-
-  # Accept both sf and legacy Spatial* objects
   if (inherits(x, "Spatial")) {
     x <- sf::st_as_sf(x)
   }
-
   if (!inherits(x, "sf") && !inherits(x, "sfc")) {
     stop("`x` must be an sf or sfc object (or a Spatial* object).", call. = FALSE)
   }
-
   actual_crs <- sf::st_crs(x)
-
   if (is.na(actual_crs)) {
     stop(
       "Spatial object has no CRS assigned. ",
@@ -92,7 +83,6 @@ assert_crs <- function(x, expected_crs = NULL) {
       call. = FALSE
     )
   }
-
   if (!is.null(expected_crs)) {
     expected <- sf::st_crs(expected_crs)
     if (actual_crs != expected) {
@@ -105,10 +95,8 @@ assert_crs <- function(x, expected_crs = NULL) {
       )
     }
   }
-
   invisible(TRUE)
 }
-
 
 #' Assert Datetime Column is Parseable and Timezone-Aware
 #'

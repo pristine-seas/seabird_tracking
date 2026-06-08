@@ -1,12 +1,4 @@
-#' Assert that two spatial objects share the same CRS
-#'
-#' Checks whether two sf objects have the same coordinate reference system.
-#'
-#' @param x An sf object.
-#' @param y An sf object.
-#'
-#' @return Invisible TRUE if CRS matches.
-#' @export
+
 assert_crs <- function(x, y) {
   if (!inherits(x, "sf") || !inherits(y, "sf")) {
     stop("Both x and y must be sf objects.")
@@ -27,17 +19,7 @@ assert_crs <- function(x, y) {
   invisible(TRUE)
 }
 
-#' Label observations as day or night
-#'
-#' Adds a diel period label based on hour of day.
-#'
-#' @param data A data frame.
-#' @param datetime_col Character string. Name of the datetime column.
-#' @param day_start Numeric. Hour at which day begins.
-#' @param night_start Numeric. Hour at which night begins.
-#'
-#' @return The input data frame with a new diel_period column.
-#' @export
+
 label_day_night_period <- function(data,
                                    datetime_col = "timestamp",
                                    day_start = 6,
