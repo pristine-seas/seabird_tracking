@@ -27,8 +27,9 @@ You can install the development version of Shearwater from [GitHub](https://gith
 Then load the package library(Shearwater)
 
 ``` r
-# install.packages("pak")
-pak::pak("cooper61204/Shearwater")
+install.packages("remotes")
+remotes::install_github("NGS_github_username/Shearwater")
+library(Shearwater)
 ```
 
 ## Example
